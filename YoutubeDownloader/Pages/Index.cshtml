@@ -1,10 +1,115 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Ютубчик загрузчик";
 }
 
 <div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+    <h1 class="display-4">Дорова, тут ты можешь скачать с ютуба</h1>
 </div>
+
+<input type="text" id="url" style="width: 100%" />
+<button onclick="AddToDownload()" style="margin-top: 10px;">
+    Добавить загрузку
+</button>
+
+<div id="myVideos">
+</div>
+
+<script>
+    function AddToDownload() {
+        let url = document.getElementById('url').value;
+        SendRequestJson({
+            url: '/api/main/AddToDownload',
+            body: {
+                url: url
+            },
+            success: function (data) {
+                let response = JSON.parse(data.responseText);
+                if (response.error) {
+                    alert(response.message);
+                } else {
+                    var videosDiv = document.getElementById('myVideos');
+                    var id = response.downloadId;
+                    let div = document.createElement('div');
+                    div.setAttribute("state", "Wait");
+                    div.setAttribute("videoId", id);
+                    div.classList.add('my-video');
+                    videosDiv.prepend(div);
+
+                    let label = document.createElement('label');
+                    label.classList.add('state');
+                    div.appendChild(label);
+                    label.append("Wait");
+
+                    let label2 = document.createElement('label');
+                    div.appendChild(label2);
+                    label2.append(url);
+
+                    document.getElementById('url').value = "";
+                }
+            },
+            always: function (data) {
+                searchRequestInProcess = false;
+            }
+        });
+    }
+
+    setInterval(function () {
+        let videoDivs = document.getElementsByClassName('my-video');
+        for (let i = 0; i < videoDivs.length; i++) {
+            if (videoDivs[i].getAttribute('state') != "Ready") {
+                let videoId = videoDivs[i].getAttribute('videoId');
+                SendRequest({
+                    url: '/api/main/state/' + videoId,
+                    method: 'GET',
+                    success: function (data) {
+                        let response = JSON.parse(data.responseText);
+                        if (response.error) {
+                            alert(response.message);
+                        } else {
+                            videoDivs[i].setAttribute('state', response.state);
+                            for (let i1 = 0; i1 < videoDivs[i].childNodes.length; i1++) {
+                                if (videoDivs[i].childNodes[i1].className == "state") {
+                                    videoDivs[i].childNodes[i1].textContent = response.state;
+                                }
+                            }
+
+                            if (response.state == "Ready") {
+                                let href = document.createElement('a');
+                                href.setAttribute('href', "/api/main/download/" + videoId);
+                                var size = Math.round(response.size / 1024 / 1024, 2);
+                                href.append("Скачать " + response.title + " (" + size + "МБ)");
+                                videoDivs[i].appendChild(href);
+                            }
+                        }
+                    },
+                    always: function (data) {
+                        searchRequestInProcess = false;
+                    }
+                });
+            }
+        }
+
+        console.log("tick tack");
+    }, 2000);
+</script>
+
+<style>
+    .my-video {
+        margin-left: 10px;
+        border: 1px solid gray;
+        margin-top: 10px;
+    }
+
+        .my-video label {
+        }
+
+        .my-video a {
+            display: block;
+        }
+
+        .my-video .state {
+            margin-right: 10px;
+        }
+</style>

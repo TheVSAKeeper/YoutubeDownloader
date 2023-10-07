@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using YoutubeExplode;
-using YoutubeExplode.Videos.Streams;
+﻿using System;
+using System.ComponentModel;
+using Microsoft.AspNetCore.Mvc;
+using YoutubeDownloader.Logic;
 
 namespace YoutubeDownloader.Controllers
 {
@@ -8,34 +9,54 @@ namespace YoutubeDownloader.Controllers
     [Route("api/[controller]")]
     public class MainController : ControllerBase
     {
-        [HttpGet("Download/{url}")]
-        public async Task<IActionResult> GetById(string url)
+        public MainController()
         {
-            url = "https://www.youtube.com/watch?v=iVbSzkwx-9M";
-
-            await Downloader.ASD(url);
-            return new JsonResult(new { url });
         }
-    }
 
-    public class Downloader
-    {
-        public static async Task ASD(string url)
+        [HttpPost("AddToDownload")]
+        public async Task<IActionResult> AddToDownload(Request model)
         {
-            var asd = 1;
-            var youtube = new YoutubeClient();
+            var item = Globals.DownloadManager.AddToQueue(model.Url);
+            return new JsonResult(new { downloadId = item.Id });
+        }
 
-            // You can specify either the video URL or its ID
-            var videoUrl = "https://youtube.com/watch?v=u_yIGGhubZs";
-            var video = await youtube.Videos.GetAsync(videoUrl);
+        [HttpGet("state/{id}")]
+        public IActionResult State(Guid id)
+        {
+            var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == id);
+            if (item == null)
+            {
+                return new JsonResult(new { state = "NotFound" });
+            }
 
-            var title = video.Title; // "Collections - Blender 2.80 Fundamentals"
-            var author = video.Author.ChannelTitle; // "Blender"
-            var duration = video.Duration; // 00:07:20
+            if (item.State != DownloadItemState.Ready)
+            {
+                return new JsonResult(new { state = item.State.ToString() });
+            }
 
-            var streamManifest = await youtube.Videos.Streams.GetManifestAsync(videoUrl);
-            var streamInfo = streamManifest.GetMuxedStreams().GetWithHighestVideoQuality();
-            await youtube.Videos.Streams.DownloadAsync(streamInfo, $"video.123");
+            return new JsonResult(new { state = item.State.ToString(), title = item.Info.Title, size = item.Info.BiteSize });
+        }
+
+        [HttpGet("download/{id}")]
+        public IActionResult Download(Guid id)
+        {
+            var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == id);
+            if (item == null)
+            {
+                return new JsonResult(new { error = true, message = "Фаил не найден" });
+            }
+
+            if (item.State != DownloadItemState.Ready)
+            {
+                return new JsonResult(new { error = true, message = "Состояние не готово. Текущие " + item.State });
+            }
+
+            return File(System.IO.File.ReadAllBytes(item.FullPath), "video/mp4", item.Info.Title + ".mp4");
+        }
+
+        public class Request
+        {
+            public string Url { get; set; }
         }
     }
 }
