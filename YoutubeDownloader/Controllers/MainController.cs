@@ -1,6 +1,5 @@
-﻿using System;
-using System.ComponentModel;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using YoutubeDownloader.ApiModels;
 using YoutubeDownloader.Logic;
 
 namespace YoutubeDownloader.Controllers
@@ -16,8 +15,9 @@ namespace YoutubeDownloader.Controllers
         [HttpPost("AddToDownload")]
         public async Task<IActionResult> AddToDownload(Request model)
         {
-            var item = Globals.DownloadManager.AddToQueue(model.Url);
-            return new JsonResult(new { downloadId = item.Id });
+            var item = await Globals.DownloadManager.AddToQueueAsync(model.Url);
+            StateModel stateModel = GetStateModel(item);
+            return new JsonResult(stateModel);
         }
 
         [HttpGet("state/{id}")]
@@ -29,29 +29,60 @@ namespace YoutubeDownloader.Controllers
                 return new JsonResult(new { state = "NotFound" });
             }
 
-            if (item.State != DownloadItemState.Ready)
-            {
-                return new JsonResult(new { state = item.State.ToString() });
-            }
-
-            return new JsonResult(new { state = item.State.ToString(), title = item.Info.Title, size = item.Info.BiteSize });
+            StateModel model = GetStateModel(item);
+            return new JsonResult(model);
         }
 
-        [HttpGet("download/{id}")]
-        public IActionResult Download(Guid id)
+        private static StateModel GetStateModel(DownloadManager.DownloadItem? item)
+        {
+            var title = item.Video.Title;
+            var duration = item.Video.Duration;
+
+            //if (item.State != DownloadItemState.Ready)
+            //{
+            //    return new JsonResult(new { state = item.State.ToString() });
+            //}
+            var model = new StateModel
+            {
+                DownloadId = item.Id,
+                Title = title,
+                Streams = item.Streams.Select(x => new StateModel.StreamModel
+                {
+                    Id = x.Id,
+                    State = x.State.ToString(),
+                    Title = x.Stream.ToString() + " " + Math.Round(x.Stream.Size.MegaBytes, 2) + "МБ",
+                }).ToArray(),
+            };
+            return model;
+        }
+
+        [HttpGet("download/{id}/{streamId}")]
+        public IActionResult Download(Guid id, int streamId)
         {
             var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == id);
             if (item == null)
             {
                 return new JsonResult(new { error = true, message = "Фаил не найден" });
             }
-
-            if (item.State != DownloadItemState.Ready)
+            var stream = item.Streams.FirstOrDefault(x => x.Id == streamId);
+            if (stream == null)
             {
-                return new JsonResult(new { error = true, message = "Состояние не готово. Текущие " + item.State });
+                return new JsonResult(new { error = true, message = "Фаил не найден" });
             }
 
-            return File(System.IO.File.ReadAllBytes(item.FullPath), "video/mp4", item.Info.Title + ".mp4");
+            if (stream.State != DownloadItemState.Ready)
+            {
+                return new JsonResult(new { error = true, message = "Состояние не готово. Текущие " + stream.State });
+            }
+
+            return File(System.IO.File.ReadAllBytes(stream.FullPath), "video/mp4", item.Video.Title + ".mp4");
+        }
+
+        [HttpGet("SetToDownloadState/{id}/{streamId}")]
+        public IActionResult SetToDownloadState(Guid id, int streamId)
+        {
+            Globals.DownloadManager.SetStreamToDownload(id, streamId);
+            return new JsonResult(new { message = "Всё оки" });
         }
 
         public class Request

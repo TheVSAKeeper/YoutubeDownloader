@@ -2,8 +2,24 @@
 {
     public enum DownloadItemState
     {
-        Wait = 0,
-        InProcess = 1,
-        Ready = 2,
+        /// <summary>
+        /// Ожидает дальнейших распоряжений.
+        /// </summary>
+        Base,
+
+        /// <summary>
+        /// Ожидает загрузку.
+        /// </summary>
+        Wait,
+
+        /// <summary>
+        /// В процессе загрузки.
+        /// </summary>
+        InProcess,
+
+        /// <summary>
+        /// Загружен.
+        /// </summary>
+        Ready,
     }
 }

@@ -8,7 +8,7 @@
     <h1 class="display-4">Дорова, тут ты можешь скачать с ютуба</h1>
 </div>
 
-<input type="text" id="url" style="width: 100%" />
+<input type="text" id="url" style="width: 100%" value="https://www.youtube.com/watch?v=iVbSzkwx-9M&ab_channel=DotaCinema" />
 <button onclick="AddToDownload()" style="margin-top: 10px;">
     Добавить загрузку
 </button>
@@ -32,21 +32,78 @@
                     var videosDiv = document.getElementById('myVideos');
                     var id = response.downloadId;
                     let div = document.createElement('div');
-                    div.setAttribute("state", "Wait");
                     div.setAttribute("videoId", id);
                     div.classList.add('my-video');
                     videosDiv.prepend(div);
 
-                    let label = document.createElement('label');
-                    label.classList.add('state');
-                    div.appendChild(label);
-                    label.append("Wait");
-
-                    let label2 = document.createElement('label');
+                    let label2 = document.createElement('h4');
                     div.appendChild(label2);
-                    label2.append(url);
+                    label2.append(response.title);
 
+                    let label3 = document.createElement('label');
+                    div.appendChild(label3);
+                    label3.append(url);
+
+                    for (let i = 0; i < response.streams.length; i++) {
+                        let stream = response.streams[i];
+                        let streamDiv = document.createElement('div');
+                        streamDiv.setAttribute("state", "Base");
+                        streamDiv.setAttribute("streamId", stream.id);
+                        streamDiv.classList.add('my-stream');
+                        div.append(streamDiv);
+
+                        let titleLabel = document.createElement('label');
+                        titleLabel.classList.add('title');
+                        streamDiv.appendChild(titleLabel);
+                        titleLabel.append(stream.title);
+
+                        let label = document.createElement('label');
+                        label.classList.add('state');
+                        streamDiv.appendChild(label);
+                        label.append("Base");
+
+                        let setDownloadButton = document.createElement('button');
+                        setDownloadButton.addEventListener('click', function (event) {
+                            console.log("click clack");
+                            clickToDownload(setDownloadButton, id, stream.id);
+                        });
+                        setDownloadButton.append("загрузить на сервер");
+                        streamDiv.append(setDownloadButton);
+                    }
+                    
                     document.getElementById('url').value = "";
+                }
+            },
+            always: function (data) {
+                searchRequestInProcess = false;
+            }
+        });
+    }
+
+    function clickToDownload(button, videoId, streamId) {
+        SendRequest({
+            url: '/api/main/SetToDownloadState/' + videoId+'/'+ streamId,
+            method: 'GET',
+            success: function (data) {
+                let response = JSON.parse(data.responseText);
+                if (response.error) {
+                    alert(response.message);
+                } else {
+                    let videoDivs = document.getElementsByClassName('my-video');
+                    for (let i = 0; i < videoDivs.length; i++) {
+                        let videoId = videoDivs[i].getAttribute('videoId');
+                        if (videoId == videoId) {
+                            for (let i3 = 0; i3 < videoDivs[i].childNodes.length; i3++) {
+                                if (videoDivs[i].childNodes[i3].className == "my-stream") {
+                                    let divStreamId = videoDivs[i].childNodes[i3].getAttribute('streamId');
+                                    if (streamId == divStreamId) {
+                                        videoDivs[i].childNodes[i3].setAttribute('state', 'Wait');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    button.style.display = 'none';
                 }
             },
             always: function (data) {
@@ -58,7 +115,18 @@
     setInterval(function () {
         let videoDivs = document.getElementsByClassName('my-video');
         for (let i = 0; i < videoDivs.length; i++) {
-            if (videoDivs[i].getAttribute('state') != "Ready") {
+            let needRequest = false;
+            for (let i3 = 0; i3 < videoDivs[i].childNodes.length; i3++) {
+                if (videoDivs[i].childNodes[i3].className == "my-stream") {
+                    let streamState = videoDivs[i].childNodes[i3].getAttribute('state');
+                    if(streamState != "Ready" && streamState != "Base") {
+                        needRequest = true;
+                    }
+                }
+            }
+
+            if (needRequest)
+            {
                 let videoId = videoDivs[i].getAttribute('videoId');
                 SendRequest({
                     url: '/api/main/state/' + videoId,
@@ -68,19 +136,36 @@
                         if (response.error) {
                             alert(response.message);
                         } else {
-                            videoDivs[i].setAttribute('state', response.state);
-                            for (let i1 = 0; i1 < videoDivs[i].childNodes.length; i1++) {
-                                if (videoDivs[i].childNodes[i1].className == "state") {
-                                    videoDivs[i].childNodes[i1].textContent = response.state;
-                                }
-                            }
 
-                            if (response.state == "Ready") {
-                                let href = document.createElement('a');
-                                href.setAttribute('href', "/api/main/download/" + videoId);
-                                var size = Math.round(response.size / 1024 / 1024, 2);
-                                href.append("Скачать " + response.title + " (" + size + "МБ)");
-                                videoDivs[i].appendChild(href);
+                            for (let i4 = 0; i4 < response.streams.length; i4++) {
+                                let stream = response.streams[i4];
+
+                                for (let i5 = 0; i5 < videoDivs[i].childNodes.length; i5++) {
+                                    if (videoDivs[i].childNodes[i5].className == "my-stream") {
+                                        let streamId = videoDivs[i].childNodes[i5].getAttribute('streamId');
+                                        if (stream.id == streamId) {
+
+                                            for (let i7 = 0; i7 < videoDivs[i].childNodes[i5].childNodes.length; i7++) {
+                                                if (videoDivs[i].childNodes[i5].childNodes[i7].className == "state") {
+                                                    let prevState = videoDivs[i].childNodes[i5].childNodes[i7].getAttribute('state');
+                                                    if (prevState != stream.state) {
+                                                        if (stream.state == "Ready") {
+                                                            let href = document.createElement('a');
+                                                            href.setAttribute('href', "/api/main/download/" + videoId + "/" + stream.id);
+                                                            //var size = Math.round(response.size / 1024 / 1024, 2);
+                                                            href.append("Скачать")//+ response.Title + " (" + size + "МБ)");
+                                                            videoDivs[i].childNodes[i5].appendChild(href);
+                                                        }
+                                                    }
+
+                                                    videoDivs[i].childNodes[i5].childNodes[i7].setAttribute('state', stream.state);
+                                                    videoDivs[i].childNodes[i5].childNodes[i7].textContent = stream.state;
+                                                }
+                                            }
+
+                                        }
+                                    }
+                                }
                             }
                         }
                     },
@@ -102,14 +187,21 @@
         margin-top: 10px;
     }
 
-        .my-video label {
-        }
+    .my-stream {
+        margin-left: 10px;
+        border: 1px solid gray;
+        margin-top: 10px;
+    }
 
-        .my-video a {
-            display: block;
-        }
+    .my-video label {
+    }
 
-        .my-video .state {
-            margin-right: 10px;
-        }
+    .my-video a {
+        display: block;
+    }
+
+    .my-video .state {
+        margin-left: 20px;
+        margin-right: 10px;
+    }
 </style>
