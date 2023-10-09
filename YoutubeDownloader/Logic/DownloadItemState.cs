@@ -21,5 +21,7 @@
         /// Загружен.
         /// </summary>
         Ready,
+
+        Error,
     }
 }

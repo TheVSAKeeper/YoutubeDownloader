@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.IO;
+using Microsoft.AspNetCore.Mvc;
 using YoutubeDownloader.ApiModels;
 using YoutubeDownloader.Logic;
+using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeDownloader.Controllers
 {
@@ -15,9 +17,17 @@ namespace YoutubeDownloader.Controllers
         [HttpPost("AddToDownload")]
         public async Task<IActionResult> AddToDownload(Request model)
         {
-            var item = await Globals.DownloadManager.AddToQueueAsync(model.Url);
-            StateModel stateModel = GetStateModel(item);
-            return new JsonResult(stateModel);
+            try
+            {
+                var item = await Globals.DownloadManager.AddToQueueAsync(model.Url);
+                StateModel stateModel = GetStateModel(item);
+                return new JsonResult(stateModel);
+            }
+            catch (Exception ex)
+            {
+                // todo сделать мидлварку для ошибок
+                return new JsonResult(new { error = true, message = "Всё упало" });
+            }
         }
 
         [HttpGet("state/{id}")]
@@ -38,10 +48,6 @@ namespace YoutubeDownloader.Controllers
             var title = item.Video.Title;
             var duration = item.Video.Duration;
 
-            //if (item.State != DownloadItemState.Ready)
-            //{
-            //    return new JsonResult(new { state = item.State.ToString() });
-            //}
             var model = new StateModel
             {
                 DownloadId = item.Id,
@@ -50,7 +56,7 @@ namespace YoutubeDownloader.Controllers
                 {
                     Id = x.Id,
                     State = x.State.ToString(),
-                    Title = x.Stream.ToString() + " " + Math.Round(x.Stream.Size.MegaBytes, 2) + "МБ",
+                    Title = x.Title,
                 }).ToArray(),
             };
             return model;
@@ -75,14 +81,23 @@ namespace YoutubeDownloader.Controllers
                 return new JsonResult(new { error = true, message = "Состояние не готово. Текущие " + stream.State });
             }
 
-            return File(System.IO.File.ReadAllBytes(stream.FullPath), "video/mp4", item.Video.Title + ".mp4");
+            var type = stream.VideoType;
+            return File(System.IO.File.ReadAllBytes(stream.FullPath), "video/" + type, item.Video.Title + "." + type);
         }
 
         [HttpGet("SetToDownloadState/{id}/{streamId}")]
         public IActionResult SetToDownloadState(Guid id, int streamId)
         {
-            Globals.DownloadManager.SetStreamToDownload(id, streamId);
-            return new JsonResult(new { message = "Всё оки" });
+            try
+            {
+                Globals.DownloadManager.SetStreamToDownload(id, streamId);
+                return new JsonResult(new { message = "Всё оки" });
+            }
+            catch (Exception ex)
+            {
+                // todo сделать мидлварку для ошибок
+                return new JsonResult(new { error = true, message = "Всё упало" });
+            }
         }
 
         public class Request

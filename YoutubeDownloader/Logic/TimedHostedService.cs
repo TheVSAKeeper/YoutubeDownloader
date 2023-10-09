@@ -33,7 +33,7 @@ namespace YoutubeDownloader.Logic
             _isInProcess = true;
 
             var count = Interlocked.Increment(ref executionCount);
-            Globals.DownloadManager.DownloadFromQueue();
+            Globals.DownloadManager.DownloadFromQueue().GetAwaiter().GetResult();
             _logger.LogInformation(
                 "Timed Hosted Service is working. Count: {Count}", count);
 
