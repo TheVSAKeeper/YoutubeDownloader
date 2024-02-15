@@ -82,14 +82,15 @@ namespace YoutubeDownloader.Logic
             return item;
         }
 
-        public void SetStreamToDownload(Guid downloadId, int streamId)
+        public void SetStreamToDownload(Guid downloadId, int streamId, Action afterDownloadAction = null)
         {
             var downloadItem = Items.First(x => x.Id == downloadId);
             var stream = downloadItem.Streams.First(x => x.Id == streamId);
             stream.State = DownloadItemState.Wait;
+            stream.AfterDownloadAction = afterDownloadAction;
         }
 
-        public async Task DownloadFromQueue()
+        public async Task<string> DownloadFromQueue()
         {
             var downloadItem = Items.FirstOrDefault(x => x.Streams.Any(x => x.State == DownloadItemState.Wait));
             if (downloadItem != null)
@@ -115,12 +116,26 @@ namespace YoutubeDownloader.Logic
                         await YoutubeDownloader.Download(downloadStream.Stream, downloadStream.FullPath);
                     }
                     downloadStream.State = DownloadItemState.Ready;
+                    if(downloadStream.AfterDownloadAction != null)
+                    {
+                        try
+                        {
+                            // todo пока отправляем видева пользователю, следующий видос не качается
+                            downloadStream.AfterDownloadAction();
+                        }
+                        catch
+                        {
+                            // todo обработку ошибок доверим автору колбэка, а тут как бы на всякий влепим
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     downloadStream.State = DownloadItemState.Error;
+                   return ex.ToString();
                 }
             }
+            return null;
         }
 
         public async Task RunAsync(string ffmpegCommand)
@@ -206,6 +221,8 @@ namespace YoutubeDownloader.Logic
                     }
                 }
             }
+
+            public Action AfterDownloadAction { get; set; }
         }
     }
 }

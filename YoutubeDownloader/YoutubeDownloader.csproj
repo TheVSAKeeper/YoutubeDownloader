@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.8" />
+    <PackageReference Include="telegram.bot" Version="19.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Another\YoutubeExplode-master\YoutubeExplode\YoutubeExplode.csproj" />
   </ItemGroup>
 

@@ -9,5 +9,6 @@
     public class Settings
     {
         public string VideoFolderPath { get; set; }
+        public string TelegramBotTokenPath { get; set; }
     }
 }
