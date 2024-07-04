@@ -4,17 +4,19 @@
     {
         private int executionCount = 0;
         private readonly ILogger<BackgroundVideoDownloaderService> _logger;
+        private readonly DownloadManager _downloadManager;
         private Timer? _timer = null;
         private bool _isInProcess = false;
 
-        public BackgroundVideoDownloaderService(ILogger<BackgroundVideoDownloaderService> logger)
+        public BackgroundVideoDownloaderService(ILogger<BackgroundVideoDownloaderService> logger, DownloadManager downloadManager)
         {
             _logger = logger;
+            _downloadManager = downloadManager;
         }
 
         public async Task StartAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Timed Hosted Service running.");
+            _logger.LogInformation("BackgroundVideoDownloaderService running.");
 
             _timer = new Timer(DoWork, null, TimeSpan.Zero,
                 TimeSpan.FromSeconds(5));
@@ -29,18 +31,14 @@
             _isInProcess = true;
 
             var count = Interlocked.Increment(ref executionCount);
-            var error = Globals.DownloadManager.DownloadFromQueue().GetAwaiter().GetResult();
-            if (error != null)
-            {
-                _logger.LogInformation("Download exception: " + error);
-            }
+            _downloadManager.DownloadFromQueue().GetAwaiter().GetResult();
 
             _isInProcess = false;
         }
 
         public async Task StopAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Timed Hosted Service is stopping.");
+            _logger.LogInformation("BackgroundVideoDownloaderService is stopping.");
 
             _timer?.Change(Timeout.Infinite, 0);
         }

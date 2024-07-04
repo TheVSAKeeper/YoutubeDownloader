@@ -2,13 +2,19 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Ютубчик загрузчик";
+    var queryString = HttpContext.Request.QueryString;
+    string videoUrl = null;
+    if (queryString.Value.StartsWith("?video="))
+    {
+        videoUrl = queryString.Value.Substring("?video=".Length);
+    }
 }
 
 <div class="text-center">
     <h1 class="display-4">Дорова, тут ты можешь скачать с ютуба</h1>
 </div>
 
-<input type="text" id="url" style="width: 100%" @*value="https://www.youtube.com/watch?v=iVbSzkwx-9M&ab_channel=DotaCinema"*@ />
+<input type="text" id="url" style="width: 100%" />
 <button onclick="AddToDownload()" style="margin-top: 10px;">
     Добавить загрузку
 </button>
@@ -17,6 +23,15 @@
 </div>
 
 <script>
+    let startVideo = '@(videoUrl??"")';
+    document.addEventListener("DOMContentLoaded", function () {
+        if (startVideo != "") {
+            var videoUrlInput = document.getElementById('url');
+            videoUrlInput.value = startVideo;
+            AddToDownload();
+        }
+    });
+
     function AddToDownload() {
         let url = document.getElementById('url').value;
         SendRequestJson({

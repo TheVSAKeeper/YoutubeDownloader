@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using System.Text;
-using Microsoft.AspNetCore.Mvc;
 using YoutubeExplode;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
@@ -9,13 +8,18 @@ namespace YoutubeDownloader.Logic
 {
     public class DownloadManager
     {
-        public DownloadManager()
+        public List<DownloadItem> Items { get; set; }
+        private ILogger<TelegramBotService> _logger;
+
+        public DownloadManager(ILogger<TelegramBotService> logger)
         {
             Items = new List<DownloadItem>();
+            _logger = logger;
         }
 
         public async Task<DownloadItem> AddToQueueAsync(string url)
         {
+            _logger.LogTrace("Try add to queue: " + url);
             var youtube = new YoutubeClient();
 
             var video = await youtube.Videos.GetAsync(url);
@@ -79,24 +83,28 @@ namespace YoutubeDownloader.Logic
                 Streams = streams,
             };
             Items.Add(item);
+            _logger.LogTrace("Add to queue: " + url + " " + id);
             return item;
         }
 
         public void SetStreamToDownload(Guid downloadId, int streamId, Action afterDownloadAction = null)
         {
+            _logger.LogTrace("Try set stream to download: " + downloadId + " " + streamId);
             var downloadItem = Items.First(x => x.Id == downloadId);
             var stream = downloadItem.Streams.First(x => x.Id == streamId);
             stream.State = DownloadItemState.Wait;
             stream.AfterDownloadAction = afterDownloadAction;
+            _logger.LogTrace("Set stream to download: " + downloadId + " " + streamId);
         }
 
-        public async Task<string> DownloadFromQueue()
+        public async Task DownloadFromQueue()
         {
             var downloadItem = Items.FirstOrDefault(x => x.Streams.Any(x => x.State == DownloadItemState.Wait));
             if (downloadItem != null)
             {
                 var downloadStream = downloadItem.Streams.First(x => x.State == DownloadItemState.Wait);
                 downloadStream.State = DownloadItemState.InProcess;
+                _logger.LogTrace("Try download from queue: " + downloadItem.Id + " " + downloadStream.Id);
 
                 try
                 {
@@ -108,6 +116,7 @@ namespace YoutubeDownloader.Logic
                         var task2 = YoutubeDownloader.Download(downloadStream.CombineAfterDownloadStreamVideo, videoPath);
                         Task.WaitAll(task, task2);
 
+                        _logger.LogTrace("Try merge video and audio: " + downloadItem.Id + " " + downloadStream.Id);
                         var args = "-i \"" + videoPath + "\" -i \"" + audioPath + "\" -c copy \"" + downloadStream.FullPath + "\"";
                         await RunAsync(args);
                     }
@@ -116,7 +125,7 @@ namespace YoutubeDownloader.Logic
                         await YoutubeDownloader.Download(downloadStream.Stream, downloadStream.FullPath);
                     }
                     downloadStream.State = DownloadItemState.Ready;
-                    if(downloadStream.AfterDownloadAction != null)
+                    if (downloadStream.AfterDownloadAction != null)
                     {
                         try
                         {
@@ -128,14 +137,14 @@ namespace YoutubeDownloader.Logic
                             // todo обработку ошибок доверим автору колбэка, а тут как бы на всякий влепим
                         }
                     }
+                    _logger.LogTrace("Download from queue: " + downloadItem.Id + " " + downloadStream.Id);
                 }
                 catch (Exception ex)
                 {
+                    _logger.LogError(ex, "Download from queue: " + downloadItem.Id + " " + downloadStream.Id + " " + ex.Message);
                     downloadStream.State = DownloadItemState.Error;
-                   return ex.ToString();
                 }
             }
-            return null;
         }
 
         public async Task RunAsync(string ffmpegCommand)
@@ -166,8 +175,6 @@ namespace YoutubeDownloader.Logic
             }
         }
 
-        public List<DownloadItem> Items { get; set; }
-
         public class DownloadItem
         {
             public Guid Id { get; set; }
@@ -196,12 +203,27 @@ namespace YoutubeDownloader.Logic
                     if (IsCombineAfterDownload)
                     {
                         var video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                        var size = CombineAfterDownloadStreamAudio.Size.MegaBytes + CombineAfterDownloadStreamVideo.Size.MegaBytes;
-                        return "Muxed (" + video.VideoQuality.MaxHeight + " | " + video.Container.Name + ") ~" + Math.Round(size, 2) + "МБ";
+                        return "Muxed (" + video.VideoQuality.MaxHeight + " | " + video.Container.Name + ") ~" + SizeMB + "МБ";
                     }
                     else
                     {
-                        return Stream.ToString() + " " + Math.Round(Stream.Size.MegaBytes, 2) + "МБ";
+                        return Stream.ToString() + " " + SizeMB + "МБ";
+                    }
+                }
+            }
+
+            public double SizeMB
+            {
+                get
+                {
+                    if (IsCombineAfterDownload)
+                    {
+                        var size = CombineAfterDownloadStreamAudio.Size.MegaBytes + CombineAfterDownloadStreamVideo.Size.MegaBytes;
+                        return Math.Round(size, 2);
+                    }
+                    else
+                    {
+                        return Math.Round(Stream.Size.MegaBytes, 2);
                     }
                 }
             }

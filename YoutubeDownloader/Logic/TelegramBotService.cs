@@ -1,4 +1,5 @@
-﻿using Telegram.Bot;
+﻿using Microsoft.VisualBasic;
+using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -11,10 +12,12 @@ namespace YoutubeDownloader.Logic
     {
         private ITelegramBotClient _botClient;
         private ReceiverOptions _receiverOptions;
+        private DownloadManager _downloadManager;
         private ILogger<TelegramBotService> _logger;
 
-        public TelegramBotService(ILogger<TelegramBotService> logger)
+        public TelegramBotService(ILogger<TelegramBotService> logger, DownloadManager downloadManager)
         {
+            _downloadManager = downloadManager;
             _logger = logger;
             var tokenFile = Globals.Settings.TelegramBotTokenPath;
             var token = System.IO.File.ReadAllLines(tokenFile)[0];
@@ -68,6 +71,16 @@ namespace YoutubeDownloader.Logic
             catch (Exception ex)
             {
                 _logger.LogError(ex.ToString());
+                try
+                {
+                    var callbackQuery = update.CallbackQuery;
+                    var chat = callbackQuery.Message.Chat;
+                    await botClient.SendTextMessageAsync(chat.Id, $"Что то пошло не так");
+                }
+                catch
+                {
+
+                }
             }
         }
 
@@ -78,9 +91,6 @@ namespace YoutubeDownloader.Logic
 
             _logger.LogInformation($"{user.FirstName} ({user.Id}) нажал на кнопку: {callbackQuery.Data}");
 
-            // Вот тут нужно уже быть немножко внимательным и не путаться!
-            // Мы пишем не callbackQuery.Chat , а callbackQuery.Message.Chat , так как
-            // кнопка привязана к сообщению, то мы берем информацию от сообщения.
             var chat = callbackQuery.Message.Chat;
 
             if (callbackQuery.Data.StartsWith("Stream-"))
@@ -88,29 +98,31 @@ namespace YoutubeDownloader.Logic
                 var splitData = callbackQuery.Data.Substring("Stream-".Length).Split("-");
                 var downloadId = Guid.Parse(splitData[0]);
                 var streamId = Int32.Parse(splitData[1]);
-                var download = Globals.DownloadManager.Items.First();
-                var videoName = download.Video.Title;
-                var streamName = download.Streams.First(x => x.Id == streamId).Title;
 
-                Globals.DownloadManager.SetStreamToDownload(downloadId, streamId, () => { SendVideoForUser(botClient, chat.Id, downloadId, streamId); });
+                var item = _downloadManager.Items.First(x => x.Id == downloadId);
+                var stream = item.Streams.First(x => x.Id == streamId);
+                if(stream.SizeMB > 50)
+                {
+                    await botClient.SendTextMessageAsync(chat.Id, $"Я не умею скачивать видео больше 50МБ,\r\nвоспользуйтесь http://downloads.bob217.ru?video={item.Url}");
+                    return;
+                }
+                _downloadManager.SetStreamToDownload(downloadId, streamId, () => { SendVideoForUser(botClient, chat.Id, downloadId, streamId); });
 
                 await botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
                 var message = await botClient.SendTextMessageAsync(chat.Id,
-                    //$"<b>{videoName}</b>" +
-                    //$"\r\n<i>{streamName}</i>" +
-                    $"Видео добавлено в очередь для загрузки, ожидайте");//, parseMode: ParseMode.Html);
+                    $"Видео добавлено в очередь для загрузки, ожидайте");
             }
             else
             {
                 await botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
-                await botClient.SendTextMessageAsync(chat.Id, $"Что то пошло не так");
+                await botClient.SendTextMessageAsync(chat.Id, $"Что то пошло не так (\\/)._.(\\/)\r\nпопробуйте попозже");
             }
         }
         private void SendVideoForUser(ITelegramBotClient botClient, long chatId, Guid downloadId, int streamId)
         {
             try
             {
-                var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == downloadId);
+                var item = _downloadManager.Items.FirstOrDefault(x => x.Id == downloadId);
                 if (item == null)
                 {
                     _logger.LogError("Фаил не найден");
@@ -132,13 +144,8 @@ namespace YoutubeDownloader.Logic
                 var videoName = item.Video.Title;
                 var streamName = item.Streams.First(x => x.Id == streamId).Title;
 
-                //var message = botClient.SendTextMessageAsync(chatId,
-                //    $"<b>{videoName}</b>" +
-                //    $"\r\n<i>{streamName}</i>" +
-                //    $"\r\nВидео скачано, начинаю загрузку в этот чат", parseMode: ParseMode.Html).GetAwaiter().GetResult();
-
                 _logger.LogTrace("Отправка видева " + videoStream.FullPath);
-                using (var fileStream = new FileStream(videoStream.FullPath, FileMode.Open))
+                using (var fileStream = new FileStream(videoStream.FullPath, System.IO.FileMode.Open))
                 {
                     var videoInputFile = InputFile.FromStream(fileStream);
                     var caption = $"<b>{videoName}</b>" +
@@ -153,7 +160,15 @@ namespace YoutubeDownloader.Logic
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                _logger.LogError(ex, "Ошибка отправки видео: " + ex.Message);
+                try
+                {
+                    botClient.SendTextMessageAsync(chatId, $"Что то пошло не так (\\/)._.(\\/) очень жаль").GetAwaiter().GetResult();
+                }
+                catch
+                {
+
+                }
             }
         }
 
@@ -171,23 +186,32 @@ namespace YoutubeDownloader.Logic
 
                         try
                         {
-                            var item = await Globals.DownloadManager.AddToQueueAsync(message.Text);
-
-                            var buttons = new List<InlineKeyboardButton[]>();
-                            foreach (var stream in item.Streams)
+                            if (message.Text == "/start")
                             {
-                                var asd = new InlineKeyboardButton[]
-                                    {
-                                        InlineKeyboardButton.WithCallbackData(stream.Title, "Stream-" + item.Id.ToString("N") + "-" + stream.Id),
-                                    };
-                                buttons.Add(asd);
+                                await botClient.SendTextMessageAsync(
+                                    chat.Id,
+                                    "Здравствуйте,\r\nприсылайте ссылки на ютуб видосы и я помогу вам их скачать,\r\nесли они не более 50МБ (\\/)._.(\\/)");
                             }
-                            var inlineKeyboard = new InlineKeyboardMarkup(buttons);
-                            await botClient.SendTextMessageAsync(
-                                chat.Id,
-                                $"Выберите фортат для скачивания\r\n<b>{item.Video.Title}</b>",
-                                parseMode: ParseMode.Html,
-                                replyMarkup: inlineKeyboard);
+                            else
+                            {
+                                var item = await _downloadManager.AddToQueueAsync(message.Text);
+
+                                var buttons = new List<InlineKeyboardButton[]>();
+                                foreach (var stream in item.Streams)
+                                {
+                                    var asd = new InlineKeyboardButton[]
+                                        {
+                                        InlineKeyboardButton.WithCallbackData(stream.Title, "Stream-" + item.Id.ToString("N") + "-" + stream.Id),
+                                        };
+                                    buttons.Add(asd);
+                                }
+                                var inlineKeyboard = new InlineKeyboardMarkup(buttons);
+                                await botClient.SendTextMessageAsync(
+                                    chat.Id,
+                                    $"Выберите фортат для скачивания\r\n<b>{item.Video.Title}</b>",
+                                    parseMode: ParseMode.Html,
+                                    replyMarkup: inlineKeyboard);
+                            }
                         }
                         catch (Exception ex)
                         {

@@ -10,8 +10,11 @@ namespace YoutubeDownloader.Controllers
     [Route("api/[controller]")]
     public class MainController : ControllerBase
     {
-        public MainController()
+        private DownloadManager _downloadManager;
+
+        public MainController(DownloadManager downloadManager)
         {
+            _downloadManager = downloadManager;
         }
 
         [HttpPost("AddToDownload")]
@@ -19,7 +22,7 @@ namespace YoutubeDownloader.Controllers
         {
             try
             {
-                var item = await Globals.DownloadManager.AddToQueueAsync(model.Url);
+                var item = await _downloadManager.AddToQueueAsync(model.Url);
                 StateModel stateModel = GetStateModel(item);
                 return new JsonResult(stateModel);
             }
@@ -33,7 +36,7 @@ namespace YoutubeDownloader.Controllers
         [HttpGet("state/{id}")]
         public IActionResult State(Guid id)
         {
-            var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == id);
+            var item = _downloadManager.Items.FirstOrDefault(x => x.Id == id);
             if (item == null)
             {
                 return new JsonResult(new { state = "NotFound" });
@@ -65,7 +68,7 @@ namespace YoutubeDownloader.Controllers
         [HttpGet("download/{id}/{streamId}")]
         public IActionResult Download(Guid id, int streamId)
         {
-            var item = Globals.DownloadManager.Items.FirstOrDefault(x => x.Id == id);
+            var item = _downloadManager.Items.FirstOrDefault(x => x.Id == id);
             if (item == null)
             {
                 return new JsonResult(new { error = true, message = "Фаил не найден" });
@@ -90,7 +93,7 @@ namespace YoutubeDownloader.Controllers
         {
             try
             {
-                Globals.DownloadManager.SetStreamToDownload(id, streamId);
+                _downloadManager.SetStreamToDownload(id, streamId);
                 return new JsonResult(new { message = "Всё оки" });
             }
             catch (Exception ex)

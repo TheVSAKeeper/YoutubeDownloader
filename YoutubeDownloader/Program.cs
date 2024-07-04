@@ -9,6 +9,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddRazorPages();
 builder.Services.AddHostedService<BackgroundVideoDownloaderService>();
 builder.Services.AddHostedService<TelegramBotService>();
+builder.Services.AddSingleton<DownloadManager>();
 builder.Host.UseNLog();
 var app = builder.Build();
 
