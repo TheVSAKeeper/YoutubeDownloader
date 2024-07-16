@@ -1,7 +1,7 @@
 ﻿using Blazorise.Localization;
 using Microsoft.AspNetCore.Components;
 
-namespace YoutubeDownloader.Web.Layouts;
+namespace YoutubeDownloader.Web.Client.Layouts;
 
 public partial class MainLayout
 {

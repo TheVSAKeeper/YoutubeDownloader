@@ -1,4 +1,4 @@
-﻿namespace YoutubeDownloader.Web.Components.TodoApp;
+﻿namespace YoutubeDownloader.Web.Client.Components.TodoApp;
 
 public class Todo
 {

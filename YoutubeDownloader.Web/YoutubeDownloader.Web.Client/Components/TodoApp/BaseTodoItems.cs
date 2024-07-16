@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 
-namespace YoutubeDownloader.Web.Components.TodoApp;
+namespace YoutubeDownloader.Web.Client.Components.TodoApp;
 
 public abstract class BaseTodoItems : ComponentBase
 {
