@@ -1,19 +1,28 @@
-﻿namespace YoutubeDownloader.Api.Models;
+﻿using CSharpFunctionalExtensions;
+
+namespace YoutubeDownloader.Api.Models;
 
 public class StateModel
 {
-    public Guid DownloadId { get; set; }
-
-    public string Title { get; set; }
-
-    public StreamModel[] Streams { get; set; }
-
-    public class StreamModel
+    private StateModel(Guid downloadId, string title, IEnumerable<StreamModel> streams)
     {
-        public int Id { get; set; }
+        DownloadId = downloadId;
+        Title = title;
+        Streams = streams.ToArray();
+    }
 
-        public string State { get; set; }
+    public Guid DownloadId { get; }
 
-        public string Title { get; set; }
+    public string Title { get; }
+
+    public StreamModel[] Streams { get; }
+
+    public static Result<StateModel> Create(DownloadItem item)
+    {
+        string title = item.Video.Title;
+
+        StateModel model = new(item.Id, title, StreamModel.Create(item.Streams).Value);
+
+        return model;
     }
 }

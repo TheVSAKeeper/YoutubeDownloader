@@ -4,6 +4,7 @@ using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using YoutubeDownloader.Api.Models;
 using File = System.IO.File;
 
 namespace YoutubeDownloader.Api.Logic;
@@ -104,8 +105,8 @@ public class TelegramBotService : IHostedService, IDisposable
             Guid downloadId = Guid.Parse(splitData[0]);
             int streamId = int.Parse(splitData[1]);
 
-            DownloadManager.DownloadItem item = _downloadManager.Items.First(x => x.Id == downloadId);
-            DownloadManager.DownloadItemSteam stream = item.Streams.First(x => x.Id == streamId);
+            DownloadItem item = _downloadManager.Items.First(x => x.Id == downloadId);
+            DownloadItemSteam stream = item.Streams.First(x => x.Id == streamId);
 
             if (stream.SizeMb > 50)
             {
@@ -131,7 +132,7 @@ public class TelegramBotService : IHostedService, IDisposable
     {
         try
         {
-            DownloadManager.DownloadItem? item = _downloadManager.Items.FirstOrDefault(x => x.Id == downloadId);
+            DownloadItem? item = _downloadManager.Items.FirstOrDefault(x => x.Id == downloadId);
 
             if (item == null)
             {
@@ -139,7 +140,7 @@ public class TelegramBotService : IHostedService, IDisposable
                 return;
             }
 
-            DownloadManager.DownloadItemSteam? videoStream = item.Streams.FirstOrDefault(x => x.Id == streamId);
+            DownloadItemSteam? videoStream = item.Streams.FirstOrDefault(x => x.Id == streamId);
 
             if (videoStream == null)
             {
@@ -208,11 +209,11 @@ public class TelegramBotService : IHostedService, IDisposable
                     }
                     else
                     {
-                        DownloadManager.DownloadItem item = await _downloadManager.AddToQueueAsync(message.Text);
+                        DownloadItem item = await _downloadManager.AddToQueueAsync(message.Text);
 
                         List<InlineKeyboardButton[]> buttons = new();
 
-                        foreach (DownloadManager.DownloadItemSteam stream in item.Streams)
+                        foreach (DownloadItemSteam stream in item.Streams)
                         {
                             InlineKeyboardButton[] asd =
                             {

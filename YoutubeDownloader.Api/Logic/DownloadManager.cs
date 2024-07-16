@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using CSharpFunctionalExtensions;
+using YoutubeDownloader.Api.Models;
 using YoutubeExplode;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
@@ -224,69 +226,15 @@ public class DownloadManager(ILogger<DownloadManager> logger)
         }
     }
 
-    public class DownloadItem
+    public Result<DownloadItem> GetItem(Guid id)
     {
-        public Guid Id { get; set; }
-        public string Url { get; set; }
-        public List<DownloadItemSteam> Streams { get; set; }
-        public Video Video { get; internal set; }
-    }
-
-    public class DownloadItemSteam
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public string FullPath { get; set; }
-        public DownloadItemState State { get; set; }
-        public IStreamInfo Stream { get; set; }
-
-        public bool IsCombineAfterDownload { get; set; }
-        public IStreamInfo CombineAfterDownloadStreamAudio { get; set; }
-        public IStreamInfo CombineAfterDownloadStreamVideo { get; set; }
-
-        public string Title
+        if (id == Guid.Empty)
         {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    VideoOnlyStreamInfo video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                    return $"Muxed ({video.VideoQuality.MaxHeight} | {video.Container.Name}) ~{SizeMb}МБ";
-                }
-
-                return $"{Stream} {SizeMb}МБ";
-            }
+            return Result.Failure<DownloadItem>("Id не может быть пустым");
         }
 
-        public double SizeMb
-        {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    double size = CombineAfterDownloadStreamAudio.Size.MegaBytes + CombineAfterDownloadStreamVideo.Size.MegaBytes;
-                    return Math.Round(size, 2);
-                }
+        DownloadItem? item = Items.FirstOrDefault(downloadItem => downloadItem.Id == id);
 
-                return Math.Round(Stream.Size.MegaBytes, 2);
-            }
-        }
-
-        public string VideoType
-        {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    VideoOnlyStreamInfo video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                    return video.Container.Name;
-                }
-
-                return Stream.Container.Name;
-            }
-        }
-
-        public Action? AfterDownloadAction { get; set; }
-        public string FileName { get; set; }
+        return item ?? Result.Failure<DownloadItem>($"DownloadItem c id {id} не найден");
     }
 }

@@ -1,108 +1,102 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using CSharpFunctionalExtensions;
+using Microsoft.AspNetCore.Mvc;
 using YoutubeDownloader.Api.Logic;
 using YoutubeDownloader.Api.Models;
+using IResult = Microsoft.AspNetCore.Http.IResult;
 
 namespace YoutubeDownloader.Api.Endpoints;
 
 public static class MainEndpoints
 {
-    public static void MapMainEndpoints(this IEndpointRouteBuilder endpoints, IServiceProvider serviceProvider)
+    public static void MapMainEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/api/Main/AddToDownload", async ([FromBody] Request model) =>
-        {
-            DownloadManager downloadManager = serviceProvider.GetRequiredService<DownloadManager>();
-
-            try
-            {
-                DownloadManager.DownloadItem item = await downloadManager.AddToQueueAsync(model.Url);
-                StateModel stateModel = GetStateModel(item);
-                return Results.Json(stateModel);
-            }
-            catch (Exception ex)
-            {
-                return Results.Json(new { error = true, message = "Всё упало" });
-            }
-        });
-
-        endpoints.MapGet("/api/Main/state/{id}", (Guid id) =>
-        {
-            DownloadManager downloadManager = serviceProvider.GetRequiredService<DownloadManager>();
-            DownloadManager.DownloadItem? item = downloadManager.Items.FirstOrDefault(x => x.Id == id);
-
-            if (item == null)
-            {
-                return Results.Json(new { state = "NotFound" });
-            }
-
-            StateModel model = GetStateModel(item);
-            return Results.Json(model);
-        });
-
-        endpoints.MapGet("/api/Main/download/{id}/{streamId}", (Guid id, int streamId) =>
-        {
-            DownloadManager downloadManager = serviceProvider.GetRequiredService<DownloadManager>();
-            DownloadManager.DownloadItem? item = downloadManager.Items.FirstOrDefault(x => x.Id == id);
-
-            if (item == null)
-            {
-                return Results.Json(new { error = true, message = "Фаил не найден" });
-            }
-
-            DownloadManager.DownloadItemSteam? stream = item.Streams.FirstOrDefault(x => x.Id == streamId);
-
-            if (stream == null)
-            {
-                return Results.Json(new { error = true, message = "Фаил не найден" });
-            }
-
-            if (stream.State != DownloadItemState.Ready)
-            {
-                return Results.Json(new { error = true, message = $"Состояние не готово. Текущие {stream.State}" });
-            }
-
-            string type = stream.VideoType;
-            return Results.File(File.ReadAllBytes(stream.FullPath), $"video/{type}", $"{item.Video.Title}.{type}");
-        });
-
-        endpoints.MapGet("/api/Main/SetToDownloadState/{id:guid}/{streamId:int}", (Guid id, int streamId) =>
-        {
-            DownloadManager downloadManager = serviceProvider.GetRequiredService<DownloadManager>();
-
-            try
-            {
-                downloadManager.SetStreamToDownload(id, streamId);
-                return Results.Json(new { message = "Всё оки" });
-            }
-            catch (Exception ex)
-            {
-                return Results.Json(new { error = true, message = "Всё упало" });
-            }
-        });
+        endpoints.MapPost("/api/Main/add-to-download", AddToDownload);
+        endpoints.MapGet("/api/Main/state/{id:guid}", GetDownloadItemState);
+        endpoints.MapGet("/api/Main/download/{id:guid}/{streamId:int}", Download);
+        endpoints.MapGet("/api/Main/add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload);
     }
 
-    private static StateModel GetStateModel(DownloadManager.DownloadItem? item)
+    private static async Task<StateModel> AddToDownload([FromBody] AddToDownloadRequest request, [FromServices] DownloadManager downloadManager)
     {
-        string title = item.Video.Title;
-        TimeSpan? duration = item.Video.Duration;
-
-        StateModel model = new()
+        try
         {
-            DownloadId = item.Id,
-            Title = title,
-            Streams = item.Streams.Select(x => new StateModel.StreamModel
-                {
-                    Id = x.Id,
-                    State = x.State.ToString(),
-                    Title = x.Title
-                })
-                .ToArray()
-        };
+            DownloadItem item = await downloadManager.AddToQueueAsync(request.Url);
+            Result<StateModel> result = StateModel.Create(item);
 
-        return model;
+            if (result.IsFailure)
+            {
+                throw new ServiceException(result.Error);
+            }
+
+            return result.Value;
+        }
+        catch (Exception exception)
+        {
+            throw new ServiceException(exception.Message);
+        }
     }
-}
 
-public class Request
-{
-    public string Url { get; set; }
+    private static StateModel GetDownloadItemState(Guid id, [FromServices] DownloadManager downloadManager)
+    {
+        Result<DownloadItem> searchResult = downloadManager.GetItem(id);
+
+        if (searchResult.IsFailure)
+        {
+            throw new ServiceException(searchResult.Error);
+        }
+
+        Result<StateModel> createResult = StateModel.Create(searchResult.Value);
+
+        if (createResult.IsFailure)
+        {
+            throw new ServiceException(createResult.Error);
+        }
+
+        return createResult.Value;
+    }
+
+    private static IResult Download(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
+    {
+        (bool _, bool isFailure, DownloadItem? item, string? error) = downloadManager.GetItem(id);
+
+        if (isFailure)
+        {
+            throw new ServiceException(error);
+        }
+
+        (_, isFailure, DownloadItemSteam? stream, error) = item.GetStream(streamId);
+
+        if (isFailure)
+        {
+            throw new ServiceException(error);
+        }
+
+        if (stream.State != DownloadItemState.Ready)
+        {
+            throw new ServiceException($"Состояние не готово. Текущие {stream.State}");
+        }
+
+        string type = stream.VideoType;
+        return Results.File(File.ReadAllBytes(stream.FullPath), $"video/{type}", $"{item.Video.Title}.{type}");
+    }
+
+    private static IResult AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
+    {
+        try
+        {
+            downloadManager.SetStreamToDownload(id, streamId);
+
+            return Results.Json(new
+            {
+                message = "Всё оки"
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new
+            {
+                error = true, message = "Всё упало"
+            });
+        }
+    }
 }
