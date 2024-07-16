@@ -1,13 +1,12 @@
-﻿namespace YoutubeDownloader.Logic
-{
-    public static class Globals
-    {
-        public static Settings Settings { get; set; } 
-    }
+﻿namespace YoutubeDownloader.Logic;
 
-    public class Settings
-    {
-        public string VideoFolderPath { get; set; }
-        public string TelegramBotTokenPath { get; set; }
-    }
+public static class Globals
+{
+    public static Settings Settings { get; set; }
+}
+
+public class Settings
+{
+    public string VideoFolderPath { get; set; }
+    public string TelegramBotTokenPath { get; set; }
 }

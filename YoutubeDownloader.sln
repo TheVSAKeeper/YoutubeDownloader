@@ -5,7 +5,15 @@ VisualStudioVersion = 17.5.33414.496
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeDownloader", "YoutubeDownloader\YoutubeDownloader.csproj", "{608D9194-0E0C-4E78-83CA-4CF63BD0F978}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "YoutubeExplode", "Another\YoutubeExplode-master\YoutubeExplode\YoutubeExplode.csproj", "{739B265C-90FF-45C4-A9A9-9183BE65535B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeDownloader.Api", "YoutubeDownloader.Api\YoutubeDownloader.Api.csproj", "{58702F86-B479-4E25-B3CD-BC82D57B0F2E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "YoutubeExplode", "YoutubeExplode", "{168940C0-700B-4C83-8B7B-A23D93758E65}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeDownloader.Web", "YoutubeDownloader.Web\YoutubeDownloader.Web.csproj", "{EEE33E5F-E476-4AF1-A21A-2CAE550A5B80}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeExplode", "YoutubeExplode\YoutubeExplode\YoutubeExplode.csproj", "{2DFC1498-406E-442D-9A4B-91DED70109A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeExplode.Converter", "YoutubeExplode\YoutubeExplode.Converter\YoutubeExplode.Converter.csproj", "{9D483369-9153-4958-97AC-B2B272D94DD1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,15 +25,31 @@ Global
 		{608D9194-0E0C-4E78-83CA-4CF63BD0F978}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{608D9194-0E0C-4E78-83CA-4CF63BD0F978}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{608D9194-0E0C-4E78-83CA-4CF63BD0F978}.Release|Any CPU.Build.0 = Release|Any CPU
-		{739B265C-90FF-45C4-A9A9-9183BE65535B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{739B265C-90FF-45C4-A9A9-9183BE65535B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{739B265C-90FF-45C4-A9A9-9183BE65535B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{739B265C-90FF-45C4-A9A9-9183BE65535B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58702F86-B479-4E25-B3CD-BC82D57B0F2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58702F86-B479-4E25-B3CD-BC82D57B0F2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58702F86-B479-4E25-B3CD-BC82D57B0F2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58702F86-B479-4E25-B3CD-BC82D57B0F2E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEE33E5F-E476-4AF1-A21A-2CAE550A5B80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEE33E5F-E476-4AF1-A21A-2CAE550A5B80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEE33E5F-E476-4AF1-A21A-2CAE550A5B80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEE33E5F-E476-4AF1-A21A-2CAE550A5B80}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D483369-9153-4958-97AC-B2B272D94DD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D483369-9153-4958-97AC-B2B272D94DD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D483369-9153-4958-97AC-B2B272D94DD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D483369-9153-4958-97AC-B2B272D94DD1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D93C1CAA-40E2-44D0-8FC0-6AB8321CB4BE}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2DFC1498-406E-442D-9A4B-91DED70109A0} = {168940C0-700B-4C83-8B7B-A23D93758E65}
+		{9D483369-9153-4958-97AC-B2B272D94DD1} = {168940C0-700B-4C83-8B7B-A23D93758E65}
 	EndGlobalSection
 EndGlobal

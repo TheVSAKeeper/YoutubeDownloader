@@ -1,51 +1,50 @@
-﻿namespace YoutubeDownloader.Logic
+﻿namespace YoutubeDownloader.Logic;
+
+public class BackgroundVideoDownloaderService : IHostedService, IDisposable
 {
-    public class BackgroundVideoDownloaderService : IHostedService, IDisposable
+    private readonly DownloadManager _downloadManager;
+    private readonly ILogger<BackgroundVideoDownloaderService> _logger;
+    private bool _isInProcess;
+    private int executionCount;
+    private Timer? _timer;
+
+    public BackgroundVideoDownloaderService(ILogger<BackgroundVideoDownloaderService> logger, DownloadManager downloadManager)
     {
-        private int executionCount = 0;
-        private readonly ILogger<BackgroundVideoDownloaderService> _logger;
-        private readonly DownloadManager _downloadManager;
-        private Timer? _timer = null;
-        private bool _isInProcess = false;
+        _logger = logger;
+        _downloadManager = downloadManager;
+    }
 
-        public BackgroundVideoDownloaderService(ILogger<BackgroundVideoDownloaderService> logger, DownloadManager downloadManager)
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+
+    public async Task StartAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("BackgroundVideoDownloaderService running.");
+
+        _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+    }
+
+    public async Task StopAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("BackgroundVideoDownloaderService is stopping.");
+
+        _timer?.Change(Timeout.Infinite, 0);
+    }
+
+    private void DoWork(object? state)
+    {
+        if (_isInProcess)
         {
-            _logger = logger;
-            _downloadManager = downloadManager;
+            return;
         }
 
-        public async Task StartAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("BackgroundVideoDownloaderService running.");
+        _isInProcess = true;
 
-            _timer = new Timer(DoWork, null, TimeSpan.Zero,
-                TimeSpan.FromSeconds(5));
-        }
+        int count = Interlocked.Increment(ref executionCount);
+        _downloadManager.DownloadFromQueue().GetAwaiter().GetResult();
 
-        private void DoWork(object? state)
-        {
-            if (_isInProcess)
-            {
-                return;
-            }
-            _isInProcess = true;
-
-            var count = Interlocked.Increment(ref executionCount);
-            _downloadManager.DownloadFromQueue().GetAwaiter().GetResult();
-
-            _isInProcess = false;
-        }
-
-        public async Task StopAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("BackgroundVideoDownloaderService is stopping.");
-
-            _timer?.Change(Timeout.Infinite, 0);
-        }
-
-        public void Dispose()
-        {
-            _timer?.Dispose();
-        }
+        _isInProcess = false;
     }
 }

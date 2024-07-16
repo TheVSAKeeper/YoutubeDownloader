@@ -2,8 +2,9 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Ютубчик загрузчик";
-    var queryString = HttpContext.Request.QueryString;
+    QueryString queryString = HttpContext.Request.QueryString;
     string videoUrl = null;
+
     if (queryString.Value.StartsWith("?video="))
     {
         videoUrl = queryString.Value.Substring("?video=".Length);
@@ -14,7 +15,7 @@
     <h1 class="display-4">Дорова, тут ты можешь скачать с ютуба</h1>
 </div>
 
-<input type="text" id="url" style="width: 100%" />
+<input id="url" style="width: 100%" type="text"/>
 <button onclick="AddToDownload()" style="margin-top: 10px;">
     Добавить загрузку
 </button>
@@ -23,7 +24,7 @@
 </div>
 
 <script>
-    let startVideo = '@(videoUrl??"")';
+    let startVideo = '@(videoUrl ?? "")';
     document.addEventListener("DOMContentLoaded", function () {
         if (startVideo != "") {
             var videoUrlInput = document.getElementById('url');
@@ -37,9 +38,9 @@
         SendRequestJson({
             url: '/api/main/AddToDownload',
             body: {
-                url: url
+                url
             },
-            success: function (data) {
+            success(data) {
                 let response = JSON.parse(data.responseText);
                 if (response.error) {
                     alert(response.message);
@@ -85,11 +86,11 @@
                         setDownloadButton.append("загрузить на сервер");
                         streamDiv.append(setDownloadButton);
                     }
-                    
+
                     document.getElementById('url').value = "";
                 }
             },
-            always: function (data) {
+            always(data) {
                 searchRequestInProcess = false;
             }
         });
@@ -99,7 +100,7 @@
         SendRequest({
             url: '/api/main/SetToDownloadState/' + videoId+'/'+ streamId,
             method: 'GET',
-            success: function (data) {
+            success(data) {
                 let response = JSON.parse(data.responseText);
                 if (response.error) {
                     alert(response.message);
@@ -121,7 +122,7 @@
                     button.style.display = 'none';
                 }
             },
-            always: function (data) {
+            always(data) {
                 searchRequestInProcess = false;
             }
         });
@@ -146,7 +147,7 @@
                 SendRequest({
                     url: '/api/main/state/' + videoId,
                     method: 'GET',
-                    success: function (data) {
+                    success(data) {
                         let response = JSON.parse(data.responseText);
                         if (response.error) {
                             alert(response.message);
@@ -168,7 +169,7 @@
                                                             let href = document.createElement('a');
                                                             href.setAttribute('href', "/api/main/download/" + videoId + "/" + stream.id);
                                                             //var size = Math.round(response.size / 1024 / 1024, 2);
-                                                            href.append("Скачать")//+ response.Title + " (" + size + "МБ)");
+                                                            href.append("Скачать");//+ response.Title + " (" + size + "МБ)");
                                                             videoDivs[i].childNodes[i5].appendChild(href);
                                                         }
                                                     }
@@ -184,7 +185,7 @@
                             }
                         }
                     },
-                    always: function (data) {
+                    always(data) {
                         searchRequestInProcess = false;
                     }
                 });

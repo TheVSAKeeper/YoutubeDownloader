@@ -2,7 +2,7 @@
     let _this = {};
     let defaultOptions = {
         method: 'POST',
-    }
+    };
 
     _this.options = Object.assign({}, defaultOptions, options);
 
@@ -39,7 +39,7 @@
             }
         };
         xhr.send(bodyString);
-    }
+    };
     _this.Send();
 }
 
@@ -47,7 +47,7 @@ function SendRequestJson(options) {
     let _this = {};
     let defaultOptions = {
         method: 'POST',
-    }
+    };
 
     _this.options = Object.assign({}, defaultOptions, options);
 
@@ -73,6 +73,6 @@ function SendRequestJson(options) {
             }
         };
         xhr.send(JSON.stringify(_this.options.body));
-    }
+    };
     _this.Send();
 }
