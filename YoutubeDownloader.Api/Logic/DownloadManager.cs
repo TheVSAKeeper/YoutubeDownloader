@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text;
-using CSharpFunctionalExtensions;
+using Calabonga.OperationResults;
 using YoutubeDownloader.Api.Models;
 using YoutubeExplode;
 using YoutubeExplode.Videos;
@@ -77,7 +77,8 @@ public class DownloadManager(ILogger<DownloadManager> logger)
                 Id = streamId,
                 Name = $"{id}_{streamId}.{type}",
                 FullPath = Path.Combine(Globals.Settings.VideoFolderPath, $"{id}_{streamId}.{type}"),
-                FileName = Path.Combine(Globals.Settings.VideoFolderPath, $"{video.Title}.{type}"),
+                FileNamePath = Path.Combine(Globals.Settings.VideoFolderPath, $"{video.Title}.{type}"),
+                FileName = $"{video.Title}.{type}",
                 State = DownloadItemState.Base,
                 IsCombineAfterDownload = true,
                 CombineAfterDownloadStreamAudio = bestAudioStream.Stream,
@@ -161,7 +162,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
                 logger.LogTrace("Try merge video and audio: " + downloadItem.Id + " " + downloadStream.Id);
 
                 string args = $"""
-                               -i "{videoPath}" -i "{audioPath}" -c copy "{downloadStream.FileName}"
+                               -i "{videoPath}" -i "{audioPath}" -c copy "{downloadStream.FileNamePath}"
                                """;
 
                 await RunAsync(args);
@@ -226,15 +227,15 @@ public class DownloadManager(ILogger<DownloadManager> logger)
         }
     }
 
-    public Result<DownloadItem> GetItem(Guid id)
+    public Operation<DownloadItem, string> FindItem(Guid id)
     {
         if (id == Guid.Empty)
         {
-            return Result.Failure<DownloadItem>("Id не может быть пустым");
+            return Operation.Error<string>("Id не может быть пустым");
         }
 
         DownloadItem? item = Items.FirstOrDefault(downloadItem => downloadItem.Id == id);
 
-        return item ?? Result.Failure<DownloadItem>($"DownloadItem c id {id} не найден");
+        return item is not null ? Operation.Result(item) : Operation.Error<string>($"DownloadItem c id {id} не найден");
     }
 }

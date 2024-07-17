@@ -1,4 +1,4 @@
-﻿using CSharpFunctionalExtensions;
+﻿using Calabonga.OperationResults;
 using YoutubeExplode.Videos;
 
 namespace YoutubeDownloader.Api.Models;
@@ -10,10 +10,12 @@ public class DownloadItem
     public List<DownloadItemSteam> Streams { get; set; }
     public Video Video { get; set; }
 
-    public Result<DownloadItemSteam> GetStream(int id)
-    {
-        DownloadItemSteam? item = Streams.FirstOrDefault(downloadItem => downloadItem.Id == id);
+    public string FileName => $"{Video.Title}.{Video}";
 
-        return item ?? Result.Failure<DownloadItemSteam>($"DownloadItemSteam c id {id} не найден");
+    public Operation<DownloadItemSteam, string> GetStream(int id)
+    {
+        DownloadItemSteam? itemSteam = Streams.FirstOrDefault(downloadItem => downloadItem.Id == id);
+
+        return itemSteam is not null ? Operation.Result(itemSteam) : Operation.Error<string>($"DownloadItemSteam c id {id} не найден");
     }
 }

@@ -1,4 +1,4 @@
-﻿using CSharpFunctionalExtensions;
+﻿using Calabonga.OperationResults;
 
 namespace YoutubeDownloader.Api.Models;
 
@@ -17,9 +17,9 @@ public class StreamModel
 
     public string Title { get; }
 
-    public static Result<StreamModel> Create(DownloadItemSteam item) =>
+    public static Operation<StreamModel> Create(DownloadItemSteam item) =>
         new StreamModel(item.Id, item.State.ToString(), item.Title);
 
-    public static Result<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemSteam> steams) =>
-        Result.Success(steams.Select(steam => Create(steam).Value));
+    public static Operation<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemSteam> steams) =>
+        Operation.Result(steams.Select(steam => Create(steam).Result));
 }

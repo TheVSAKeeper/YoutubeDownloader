@@ -58,5 +58,6 @@ public class DownloadItemSteam
     }
 
     public Action? AfterDownloadAction { get; set; }
+    public string FileNamePath { get; set; }
     public string FileName { get; set; }
 }

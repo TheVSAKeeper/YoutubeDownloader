@@ -1,102 +1,124 @@
-﻿using CSharpFunctionalExtensions;
+﻿using Calabonga.OperationResults;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using YoutubeDownloader.Api.Logic;
 using YoutubeDownloader.Api.Models;
-using IResult = Microsoft.AspNetCore.Http.IResult;
+using YoutubeDownloader.Api.Models.Requests;
 
 namespace YoutubeDownloader.Api.Endpoints;
 
 public static class MainEndpoints
 {
-    public static void MapMainEndpoints(this IEndpointRouteBuilder endpoints)
+    public static void MapMainEndpoints(this IEndpointRouteBuilder routes)
     {
-        endpoints.MapPost("/api/Main/add-to-download", AddToDownload);
-        endpoints.MapGet("/api/Main/state/{id:guid}", GetDownloadItemState);
-        endpoints.MapGet("/api/Main/download/{id:guid}/{streamId:int}", Download);
-        endpoints.MapGet("/api/Main/add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload);
+        RouteGroupBuilder group = routes.MapGroup("/api/main/").WithTags("Main");
+
+        group.MapPost("add-to-download", AddToDownload)
+            .WithName("AddToDownload")
+            .WithSummary("Добавить новый элемент в очередь загрузки")
+            .WithDescription("Позволяет добавить новый элемент в очередь загрузки. Элемент идентифицируется по его уникальному ID.")
+            .Produces<Ok<StateModel>>()
+            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
+
+        group.MapGet("state/{id:guid}", GetDownloadItemState)
+            .WithName("GetDownloadItemState")
+            .WithSummary("Получить состояние элемента загрузки")
+            .WithDescription("Возвращает текущее состояние элемента загрузки. Элемент идентифицируется по его уникальному ID.")
+            .Produces<Ok<StateModel>>()
+            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
+
+        group.MapGet("download/{id:guid}/{streamId:int}", Download)
+            .WithName("Download")
+            .WithSummary("Скачать поток элемента загрузки")
+            .WithDescription("Позволяет скачать конкретный поток элемента загрузки. Элемент и поток идентифицируются по их уникальным ID.")
+            .Produces<FileStreamHttpResult>()
+            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
+
+        group.MapGet("add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload)
+            .WithName("AddStreamToDownload")
+            .WithSummary("Добавить поток к элементу загрузки")
+            .WithDescription("Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.")
+            .Produces<Ok<string>>()
+            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
     }
 
-    private static async Task<StateModel> AddToDownload([FromBody] AddToDownloadRequest request, [FromServices] DownloadManager downloadManager)
+    private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload([FromBody] AddToDownloadRequest request, [FromServices] DownloadManager downloadManager)
     {
         try
         {
             DownloadItem item = await downloadManager.AddToQueueAsync(request.Url);
-            Result<StateModel> result = StateModel.Create(item);
+            Operation<StateModel> operation = StateModel.Create(item);
 
-            if (result.IsFailure)
-            {
-                throw new ServiceException(result.Error);
-            }
-
-            return result.Value;
+            return operation.Ok ? TypedResults.Ok(operation.Result) : TypedResults.BadRequest("Не удалось получить состояние");
         }
         catch (Exception exception)
         {
-            throw new ServiceException(exception.Message);
+            return TypedResults.BadRequest(exception.Message);
         }
     }
 
-    private static StateModel GetDownloadItemState(Guid id, [FromServices] DownloadManager downloadManager)
+    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, [FromServices] DownloadManager downloadManager)
     {
-        Result<DownloadItem> searchResult = downloadManager.GetItem(id);
+        Operation<DownloadItem, string> itemOperation = downloadManager.FindItem(id);
 
-        if (searchResult.IsFailure)
+        if (itemOperation.Ok == false)
         {
-            throw new ServiceException(searchResult.Error);
+            return TypedResults.BadRequest(itemOperation.Error);
         }
 
-        Result<StateModel> createResult = StateModel.Create(searchResult.Value);
+        DownloadItem item = itemOperation.Result;
 
-        if (createResult.IsFailure)
-        {
-            throw new ServiceException(createResult.Error);
-        }
+        Operation<StateModel> stateModelOperation = StateModel.Create(item);
 
-        return createResult.Value;
+        return stateModelOperation.Ok ? TypedResults.Ok(stateModelOperation.Result) : TypedResults.BadRequest("Не удалось получить состояние");
     }
 
-    private static IResult Download(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
+    private static Results<FileStreamHttpResult, BadRequest<string>> Download(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
     {
-        (bool _, bool isFailure, DownloadItem? item, string? error) = downloadManager.GetItem(id);
+        Operation<DownloadItem, string> itemOperation = downloadManager.FindItem(id);
 
-        if (isFailure)
+        if (itemOperation.Ok == false)
         {
-            throw new ServiceException(error);
+            return TypedResults.BadRequest(itemOperation.Error);
         }
 
-        (_, isFailure, DownloadItemSteam? stream, error) = item.GetStream(streamId);
+        DownloadItem item = itemOperation.Result;
 
-        if (isFailure)
+        Operation<DownloadItemSteam, string> streamOperation = item.GetStream(streamId);
+
+        if (streamOperation.Ok == false)
         {
-            throw new ServiceException(error);
+            return TypedResults.BadRequest(streamOperation.Error);
         }
+
+        DownloadItemSteam stream = streamOperation.Result;
 
         if (stream.State != DownloadItemState.Ready)
         {
-            throw new ServiceException($"Состояние не готово. Текущие {stream.State}");
+            return TypedResults.BadRequest($"Состояние не готово. Текущие {stream.State}");
         }
 
         string type = stream.VideoType;
-        return Results.File(File.ReadAllBytes(stream.FullPath), $"video/{type}", $"{item.Video.Title}.{type}");
+        FileStream fileStream = new(stream.FullPath, FileMode.Open, FileAccess.Read);
+
+        return TypedResults.Stream(fileStream, $"video/{type}", stream.FileName);
     }
 
-    private static IResult AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
+    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadManager downloadManager)
     {
         try
         {
             downloadManager.SetStreamToDownload(id, streamId);
 
-            return Results.Json(new
-            {
-                message = "Всё оки"
-            });
+            return TypedResults.Ok("Всё оки");
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            return Results.Json(new
-            {
-                error = true, message = "Всё упало"
-            });
+            return TypedResults.BadRequest(exception.Message);
         }
     }
 }
