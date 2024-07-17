@@ -1,23 +1,46 @@
-using YoutubeDownloader.Api.Endpoints;
-using YoutubeDownloader.Api.Logic;
+using Serilog;
+using Serilog.Events;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddHostedService<BackgroundVideoDownloaderService>();
-//builder.Services.AddHostedService<TelegramBotService>();
-builder.Services.AddSingleton<DownloadManager>();
-
-WebApplication app = builder.Build();
-
-if (app.Environment.IsDevelopment())
+try
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Override("Microsoft.AspNetCore.Hosting", LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.AspNetCore.Routing", LogEventLevel.Warning)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .CreateLogger();
+
+    WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+    builder.Services.AddSerilog();
+
+    builder.AddDefinitions(typeof(Program));
+
+    WebApplication app = builder.Build();
+
+    app.UseDefinitions();
+
+    app.UseSerilogRequestLogging();
+
+    app.Run();
+
+    return 0;
 }
+catch (Exception ex)
+{
+    string type = ex.GetType().Name;
 
-app.UseHttpsRedirection();
-app.MapMainEndpoints();
+    if (type.Equals("HostAbortedException", StringComparison.Ordinal))
+    {
+        throw;
+    }
 
-app.Run();
+    Log.Fatal(ex, "Unhandled exception");
+
+    return 0;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

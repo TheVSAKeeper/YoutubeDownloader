@@ -1,5 +1,4 @@
-﻿using YoutubeDownloader.Api.Logic;
-using YoutubeExplode.Videos.Streams;
+﻿using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeDownloader.Api.Models;
 
@@ -14,6 +13,8 @@ public class DownloadItemSteam
     public bool IsCombineAfterDownload { get; set; }
     public IStreamInfo CombineAfterDownloadStreamAudio { get; set; }
     public IStreamInfo CombineAfterDownloadStreamVideo { get; set; }
+
+    public bool IsNeedDownload => State == DownloadItemState.Wait;
 
     public string Title
     {

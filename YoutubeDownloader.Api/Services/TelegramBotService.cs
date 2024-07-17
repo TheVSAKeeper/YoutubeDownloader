@@ -1,26 +1,28 @@
-﻿using Telegram.Bot;
+﻿using Microsoft.Extensions.Options;
+using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using YoutubeDownloader.Api.Configurations;
 using YoutubeDownloader.Api.Models;
 using File = System.IO.File;
 
-namespace YoutubeDownloader.Api.Logic;
+namespace YoutubeDownloader.Api.Services;
 
 public class TelegramBotService : IHostedService, IDisposable
 {
-    private readonly DownloadManager _downloadManager;
+    private readonly DownloadService _downloadService;
     private readonly ILogger<TelegramBotService> _logger;
     private readonly ITelegramBotClient _botClient;
     private readonly ReceiverOptions _receiverOptions;
 
-    public TelegramBotService(ILogger<TelegramBotService> logger, DownloadManager downloadManager)
+    public TelegramBotService(ILogger<TelegramBotService> logger, DownloadService downloadService, IOptions<TelegramBotOptions> options)
     {
-        _downloadManager = downloadManager;
+        _downloadService = downloadService;
         _logger = logger;
-        string tokenFile = Globals.Settings.TelegramBotTokenPath;
+        string tokenFile = options.Value.FullTokenPath;
         string token = File.ReadAllLines(tokenFile)[0];
         _botClient = new TelegramBotClient(token);
         bool processMissingMessagesAfterRunBot = true;
@@ -105,7 +107,7 @@ public class TelegramBotService : IHostedService, IDisposable
             Guid downloadId = Guid.Parse(splitData[0]);
             int streamId = int.Parse(splitData[1]);
 
-            DownloadItem item = _downloadManager.Items.First(x => x.Id == downloadId);
+            DownloadItem item = _downloadService.Items.First(x => x.Id == downloadId);
             DownloadItemSteam stream = item.Streams.First(x => x.Id == streamId);
 
             if (stream.SizeMb > 50)
@@ -114,7 +116,7 @@ public class TelegramBotService : IHostedService, IDisposable
                 return;
             }
 
-            _downloadManager.SetStreamToDownload(downloadId, streamId, () => { SendVideoForUser(botClient, chat.Id, downloadId, streamId); });
+            _downloadService.SetStreamToDownload(downloadId, streamId, () => { SendVideoForUser(botClient, chat.Id, downloadId, streamId); });
 
             await botClient.AnswerCallbackQueryAsync(callbackQuery.Id);
 
@@ -132,7 +134,7 @@ public class TelegramBotService : IHostedService, IDisposable
     {
         try
         {
-            DownloadItem? item = _downloadManager.Items.FirstOrDefault(x => x.Id == downloadId);
+            DownloadItem? item = _downloadService.Items.FirstOrDefault(x => x.Id == downloadId);
 
             if (item == null)
             {
@@ -209,7 +211,7 @@ public class TelegramBotService : IHostedService, IDisposable
                     }
                     else
                     {
-                        DownloadItem item = await _downloadManager.AddToQueueAsync(message.Text);
+                        DownloadItem item = await _downloadService.AddToQueueAsync(message.Text);
 
                         List<InlineKeyboardButton[]> buttons = new();
 

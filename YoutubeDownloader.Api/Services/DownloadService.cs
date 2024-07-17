@@ -1,39 +1,52 @@
 ﻿using System.Diagnostics;
 using System.Text;
-using Calabonga.OperationResults;
+using Microsoft.Extensions.Options;
+using YoutubeDownloader.Api.Configurations;
 using YoutubeDownloader.Api.Models;
-using YoutubeExplode;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
-namespace YoutubeDownloader.Api.Logic;
+namespace YoutubeDownloader.Api.Services;
 
-public class DownloadManager(ILogger<DownloadManager> logger)
+public class DownloadService(ILogger<DownloadService> logger, YoutubeDownloadService youtubeDownloadService, IOptions<DownloadOptions> options)
 {
     private readonly List<DownloadItem> _items = [];
 
     public IEnumerable<DownloadItem> Items => _items;
 
+    public bool IsNeedDownloadAny => _items.Any(item => item.IsNeedDownloadAnyStream);
+
+    public Operation<DownloadItem, string> FindItem(Guid id)
+    {
+        if (id == Guid.Empty)
+        {
+            return Operation.Error<string>("Id не может быть пустым");
+        }
+
+        DownloadItem? item = Items.FirstOrDefault(downloadItem => downloadItem.Id == id);
+
+        return item is not null ? Operation.Result(item) : Operation.Error<string>($"DownloadItem c id {id} не найден");
+    }
+
     public async Task<DownloadItem> AddToQueueAsync(string url)
     {
-        logger.LogTrace("Try add to queue: " + url);
-        YoutubeClient youtube = new();
+        logger.LogDebug("Try add to queue: {Url}", url);
 
-        Video video = await youtube.Videos.GetAsync(url);
+        Video video = await youtubeDownloadService.GetVideoAsync(url);
 
-        StreamManifest streamManifest = await youtube.Videos.Streams.GetManifestAsync(url);
+        StreamManifest streamManifest = await youtubeDownloadService.GetStreamManifestAsync(url);
         IVideoStreamInfo streamInfo = streamManifest.GetMuxedStreams().GetWithHighestVideoQuality();
 
         Guid id = Guid.NewGuid();
 
-        List<DownloadItemSteam> streams = streamManifest.Streams.Select((x, i) =>
+        List<DownloadItemSteam> streams = streamManifest.Streams.Select((stream, i) =>
                 new DownloadItemSteam
                 {
                     Id = i,
                     Name = $"{id}_{i}.mp4",
-                    FullPath = Path.Combine(Globals.Settings.VideoFolderPath, $"{id}_{i}.mp4"),
-                    Stream = streamManifest.Streams[i],
-                    State = DownloadItemState.Base
+                    FullPath = Path.Combine(options.Value.FullVideoFolderPath, $"{id}_{i}.mp4"),
+                    Stream = stream,
+                    State = DownloadItemState.Added
                 })
             .ToList();
 
@@ -44,15 +57,15 @@ public class DownloadManager(ILogger<DownloadManager> logger)
         foreach (string type in types)
         {
             DownloadItemSteam? bestMuxedStream = streams
-                .Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is MuxedStreamInfo)
+                .Where(x => x.Stream.Container.Name == type && x.Stream is MuxedStreamInfo)
                 .MaxBy(x => ((MuxedStreamInfo)x.Stream).VideoQuality.MaxHeight);
 
             DownloadItemSteam? bestVideoStream = streams
-                .Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is VideoOnlyStreamInfo)
+                .Where(x => x.Stream.Container.Name == type && x.Stream is VideoOnlyStreamInfo)
                 .MaxBy(x => ((VideoOnlyStreamInfo)x.Stream).VideoQuality.MaxHeight);
 
             DownloadItemSteam? bestAudioStream = streams
-                .Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is AudioOnlyStreamInfo)
+                .Where(x => x.Stream.Container.Name == type && x.Stream is AudioOnlyStreamInfo)
                 .MaxBy(x => ((AudioOnlyStreamInfo)x.Stream).Size);
 
             int muxedMaxHeight = 0;
@@ -76,10 +89,10 @@ public class DownloadManager(ILogger<DownloadManager> logger)
             {
                 Id = streamId,
                 Name = $"{id}_{streamId}.{type}",
-                FullPath = Path.Combine(Globals.Settings.VideoFolderPath, $"{id}_{streamId}.{type}"),
-                FileNamePath = Path.Combine(Globals.Settings.VideoFolderPath, $"{video.Title}.{type}"),
+                FullPath = Path.Combine(options.Value.FullVideoFolderPath, $"{id}_{streamId}.{type}"),
+                FileNamePath = Path.Combine(options.Value.FullVideoFolderPath, $"{video.Title}.{type}"),
                 FileName = $"{video.Title}.{type}",
-                State = DownloadItemState.Base,
+                State = DownloadItemState.Added,
                 IsCombineAfterDownload = true,
                 CombineAfterDownloadStreamAudio = bestAudioStream.Stream,
                 CombineAfterDownloadStreamVideo = bestVideoStream.Stream
@@ -88,27 +101,21 @@ public class DownloadManager(ILogger<DownloadManager> logger)
             streamId++;
         }
 
-        DownloadItem item = new()
-        {
-            Id = id,
-            Url = url,
-            Video = video,
-            Streams = streams
-        };
+        DownloadItem item = new(id, url, streams, video);
 
         _items.Add(item);
-        logger.LogTrace("Add to queue: " + url + " " + id);
+        logger.LogDebug("Add to queue: " + url + " " + id);
         return item;
     }
 
     public void SetStreamToDownload(Guid downloadId, int streamId, Action afterDownloadAction = null)
     {
-        logger.LogTrace("Try set stream to download: " + downloadId + " " + streamId);
+        logger.LogDebug("Try set stream to download: " + downloadId + " " + streamId);
         DownloadItem downloadItem = _items.First(x => x.Id == downloadId);
         DownloadItemSteam stream = downloadItem.Streams.First(x => x.Id == streamId);
         stream.State = DownloadItemState.Wait;
         stream.AfterDownloadAction = afterDownloadAction;
-        logger.LogTrace("Set stream to download: " + downloadId + " " + streamId);
+        logger.LogDebug("Set stream to download: " + downloadId + " " + streamId);
     }
 
     public async Task DownloadFromQueue()
@@ -122,7 +129,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
 
         DownloadItemSteam downloadStream = downloadItem.Streams.First(x => x.State == DownloadItemState.Wait);
         downloadStream.State = DownloadItemState.InProcess;
-        logger.LogTrace("Try download from queue: " + downloadItem.Id + " " + downloadStream.Id);
+        logger.LogDebug("Try download from queue: " + downloadItem.Id + " " + downloadStream.Id);
 
         try
         {
@@ -135,31 +142,31 @@ public class DownloadManager(ILogger<DownloadManager> logger)
 
                 (double, double) old = (0d, 0d);
 
-                Task task = YoutubeDownloader.Download(downloadStream.CombineAfterDownloadStreamAudio, audioPath, new Progress<double>(percent =>
+                Task task = youtubeDownloadService.Download(downloadStream.CombineAfterDownloadStreamAudio, audioPath, new Progress<double>(percent =>
                 {
                     if (percent - old.Item1 < 0.02)
                     {
                         return;
                     }
 
-                    logger.LogTrace("Audio: {Percent:P}\t{VideoTitle}/{StreamId}", percent, downloadItem.Video.Title, downloadStream.Id);
+                    logger.LogDebug("Audio: {Percent:P}\t{VideoTitle}/{StreamId}", percent, downloadItem.Video.Title, downloadStream.Id);
                     old.Item1 = percent;
                 }), cancellationTokenSource.Token);
 
-                Task task2 = YoutubeDownloader.Download(downloadStream.CombineAfterDownloadStreamVideo, videoPath, new Progress<double>(percent =>
+                Task task2 = youtubeDownloadService.Download(downloadStream.CombineAfterDownloadStreamVideo, videoPath, new Progress<double>(percent =>
                 {
                     if (percent - old.Item2 < 0.02)
                     {
                         return;
                     }
 
-                    logger.LogTrace("Video: {Percent:P}\t{VideoTitle}/{StreamId}", percent, downloadItem.Video.Title, downloadStream.Id);
+                    logger.LogDebug("Video: {Percent:P}\t{VideoTitle}/{StreamId}", percent, downloadItem.Video.Title, downloadStream.Id);
                     old.Item2 = percent;
                 }), cancellationTokenSource.Token);
 
                 Task.WaitAll(task, task2);
 
-                logger.LogTrace("Try merge video and audio: " + downloadItem.Id + " " + downloadStream.Id);
+                logger.LogDebug("Try merge video and audio: " + downloadItem.Id + " " + downloadStream.Id);
 
                 string args = $"""
                                -i "{videoPath}" -i "{audioPath}" -c copy "{downloadStream.FileNamePath}"
@@ -169,7 +176,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
             }
             else
             {
-                await YoutubeDownloader.Download(downloadStream.Stream, downloadStream.FullPath, null, cancellationTokenSource.Token);
+                await youtubeDownloadService.Download(downloadStream.Stream, downloadStream.FullPath, null, cancellationTokenSource.Token);
             }
 
             downloadStream.State = DownloadItemState.Ready;
@@ -187,7 +194,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
                 }
             }
 
-            logger.LogTrace("Download from queue: " + downloadItem.Id + " " + downloadStream.Id);
+            logger.LogDebug("Download from queue: " + downloadItem.Id + " " + downloadStream.Id);
         }
         catch (Exception ex)
         {
@@ -196,7 +203,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
         }
     }
 
-    public async Task RunAsync(string ffmpegCommand)
+    private static async Task RunAsync(string ffmpegCommand)
     {
         using Process process = new();
 
@@ -215,7 +222,7 @@ public class DownloadManager(ILogger<DownloadManager> logger)
 
         while (!process.StandardError.EndOfStream)
         {
-            string text = await process.StandardError.ReadLineAsync().ConfigureAwait(continueOnCapturedContext: false);
+            string? text = await process.StandardError.ReadLineAsync().ConfigureAwait(continueOnCapturedContext: false);
             runMessage.AppendLine(text);
             lastLine = text;
         }
@@ -225,17 +232,5 @@ public class DownloadManager(ILogger<DownloadManager> logger)
         if (process.ExitCode != 0)
         {
         }
-    }
-
-    public Operation<DownloadItem, string> FindItem(Guid id)
-    {
-        if (id == Guid.Empty)
-        {
-            return Operation.Error<string>("Id не может быть пустым");
-        }
-
-        DownloadItem? item = Items.FirstOrDefault(downloadItem => downloadItem.Id == id);
-
-        return item is not null ? Operation.Result(item) : Operation.Error<string>($"DownloadItem c id {id} не найден");
     }
 }

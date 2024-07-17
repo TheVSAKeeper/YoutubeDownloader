@@ -1,21 +1,20 @@
-﻿using Calabonga.OperationResults;
-
-namespace YoutubeDownloader.Api.Models;
+﻿namespace YoutubeDownloader.Api.Models;
 
 public class StateModel
 {
+    private readonly List<StreamModel> _streams;
+
     private StateModel(Guid downloadId, string title, IEnumerable<StreamModel> streams)
     {
         DownloadId = downloadId;
         Title = title;
-        Streams = streams.ToArray();
+        _streams = streams.ToList();
     }
 
     public Guid DownloadId { get; }
 
     public string Title { get; }
-
-    public StreamModel[] Streams { get; }
+    public IEnumerable<StreamModel> Streams => _streams;
 
     public static Operation<StateModel> Create(DownloadItem item)
     {

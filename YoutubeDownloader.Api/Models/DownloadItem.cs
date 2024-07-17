@@ -1,16 +1,27 @@
-﻿using Calabonga.OperationResults;
-using YoutubeExplode.Videos;
+﻿using YoutubeExplode.Videos;
 
 namespace YoutubeDownloader.Api.Models;
 
 public class DownloadItem
 {
-    public Guid Id { get; set; }
-    public string Url { get; set; }
-    public List<DownloadItemSteam> Streams { get; set; }
-    public Video Video { get; set; }
+    private readonly List<DownloadItemSteam> _streams;
 
-    public string FileName => $"{Video.Title}.{Video}";
+    public DownloadItem(Guid id, string url, IEnumerable<DownloadItemSteam> streams, Video video)
+    {
+        Id = id;
+        Url = url;
+        _streams = streams.ToList();
+        Video = video;
+    }
+
+    public Guid Id { get; }
+    public string Url { get; }
+
+    public IEnumerable<DownloadItemSteam> Streams => _streams;
+
+    public Video Video { get; }
+
+    public bool IsNeedDownloadAnyStream => Streams.Any(steam => steam.IsNeedDownload);
 
     public Operation<DownloadItemSteam, string> GetStream(int id)
     {

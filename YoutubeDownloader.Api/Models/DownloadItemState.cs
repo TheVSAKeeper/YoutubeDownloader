@@ -1,11 +1,11 @@
-﻿namespace YoutubeDownloader.Api.Logic;
+﻿namespace YoutubeDownloader.Api.Models;
 
 public enum DownloadItemState
 {
     /// <summary>
     ///     Ожидает дальнейших распоряжений.
     /// </summary>
-    Base,
+    Added,
 
     /// <summary>
     ///     Ожидает загрузку.
@@ -22,5 +22,8 @@ public enum DownloadItemState
     /// </summary>
     Ready,
 
+    /// <summary>
+    ///     Ошибка.
+    /// </summary>
     Error
 }

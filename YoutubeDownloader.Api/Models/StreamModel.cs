@@ -1,6 +1,4 @@
-﻿using Calabonga.OperationResults;
-
-namespace YoutubeDownloader.Api.Models;
+﻿namespace YoutubeDownloader.Api.Models;
 
 public class StreamModel
 {
