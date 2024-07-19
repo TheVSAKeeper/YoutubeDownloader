@@ -4,6 +4,7 @@ using Serilog.Events;
 try
 {
     Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Debug()
         .MinimumLevel.Override("Microsoft.AspNetCore.Hosting", LogEventLevel.Warning)
         .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", LogEventLevel.Warning)
         .MinimumLevel.Override("Microsoft.AspNetCore.Routing", LogEventLevel.Warning)
@@ -27,16 +28,16 @@ try
 
     return 0;
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    string type = ex.GetType().Name;
+    Type type = exception.GetType();
 
-    if (type.Equals("HostAbortedException", StringComparison.Ordinal))
+    if (type == typeof(HostAbortedException))
     {
         throw;
     }
 
-    Log.Fatal(ex, "Unhandled exception");
+    Log.Fatal(exception, "Unhandled exception");
 
     return 0;
 }

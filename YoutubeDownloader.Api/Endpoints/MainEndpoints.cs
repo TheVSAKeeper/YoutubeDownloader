@@ -25,11 +25,11 @@ internal static class MainEndpointsEndpointsExtensions
             .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
-        group.MapGet("state/{id:guid}", GetDownloadItemState)
-            .WithName("GetDownloadItemState")
-            .WithSummary("Получить состояние элемента загрузки")
-            .WithDescription("Возвращает текущее состояние элемента загрузки. Элемент идентифицируется по его уникальному ID.")
-            .Produces<Ok<StateModel>>()
+        group.MapGet("add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload)
+            .WithName("AddStreamToDownload")
+            .WithSummary("Добавить поток к элементу загрузки")
+            .WithDescription("Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.")
+            .Produces<Ok<string>>()
             .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
@@ -41,11 +41,11 @@ internal static class MainEndpointsEndpointsExtensions
             .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
-        group.MapGet("add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload)
-            .WithName("AddStreamToDownload")
-            .WithSummary("Добавить поток к элементу загрузки")
-            .WithDescription("Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.")
-            .Produces<Ok<string>>()
+        group.MapGet("state/{id:guid}", GetDownloadItemState)
+            .WithName("GetDownloadItemState")
+            .WithSummary("Получить состояние элемента загрузки")
+            .WithDescription("Возвращает текущее состояние элемента загрузки. Элемент идентифицируется по его уникальному ID.")
+            .Produces<Ok<StateModel>>()
             .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
     }
@@ -74,29 +74,21 @@ internal static class MainEndpointsEndpointsExtensions
         }
     }
 
-    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
     {
-        logger.LogInformation("Получение состояния элемента загрузки: {Id}", id);
-        Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
-
-        if (itemOperation.Ok == false)
+        try
         {
-            logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", id, itemOperation.Error);
-            return TypedResults.BadRequest(itemOperation.Error);
+            logger.LogInformation("Добавление потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
+            downloadService.SetStreamToDownload(id, streamId);
+
+            logger.LogInformation("Успешно добавлен поток: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
+            return TypedResults.Ok("Всё оки");
         }
-
-        DownloadItem item = itemOperation.Result;
-
-        Operation<StateModel> stateModelOperation = StateModel.Create(item);
-
-        if (stateModelOperation.Ok)
+        catch (Exception exception)
         {
-            logger.LogInformation("Успешно получено состояние элемента загрузки: {Id}", id);
-            return TypedResults.Ok(stateModelOperation.Result);
+            logger.LogError(exception, "Произошла ошибка при добавлении потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
+            return TypedResults.BadRequest(exception.Message);
         }
-
-        logger.LogError("Не удалось получить состояние модели для элемента: {Id}", id);
-        return TypedResults.BadRequest("Не удалось получить состояние");
     }
 
     private static Results<FileStreamHttpResult, BadRequest<string>> Download(Guid id, int streamId, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
@@ -129,26 +121,34 @@ internal static class MainEndpointsEndpointsExtensions
         }
 
         string type = stream.VideoType;
-        FileStream fileStream = new(stream.FullPath, FileMode.Open, FileAccess.Read);
+        FileStream fileStream = new(stream.FilePath, FileMode.Open, FileAccess.Read);
 
         logger.LogInformation("Успешно скачан поток: {StreamId} для элемента: {Id}", streamId, id);
-        return TypedResults.Stream(fileStream, $"video/{type}", stream.FileName);
+        return TypedResults.Stream(fileStream, $"video/{type}", stream.FileName, enableRangeProcessing: true);
     }
 
-    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
     {
-        try
-        {
-            logger.LogInformation("Добавление потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
-            downloadService.SetStreamToDownload(id, streamId);
+        logger.LogInformation("Получение состояния элемента загрузки: {Id}", id);
+        Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
 
-            logger.LogInformation("Успешно добавлен поток: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
-            return TypedResults.Ok("Всё оки");
-        }
-        catch (Exception exception)
+        if (itemOperation.Ok == false)
         {
-            logger.LogError(exception, "Произошла ошибка при добавлении потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
-            return TypedResults.BadRequest(exception.Message);
+            logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", id, itemOperation.Error);
+            return TypedResults.BadRequest(itemOperation.Error);
         }
+
+        DownloadItem item = itemOperation.Result;
+
+        Operation<StateModel> stateModelOperation = StateModel.Create(item);
+
+        if (stateModelOperation.Ok)
+        {
+            logger.LogInformation("Успешно получено состояние элемента загрузки: {Id}", id);
+            return TypedResults.Ok(stateModelOperation.Result);
+        }
+
+        logger.LogError("Не удалось получить состояние модели для элемента: {Id}", id);
+        return TypedResults.BadRequest("Не удалось получить состояние");
     }
 }
