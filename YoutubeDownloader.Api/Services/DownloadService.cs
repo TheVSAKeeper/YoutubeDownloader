@@ -4,9 +4,6 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using YoutubeDownloader.Api.Application;
 using YoutubeDownloader.Api.Configurations;
-using YoutubeDownloader.Api.Models;
-using YoutubeExplode.Videos;
-using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeDownloader.Api.Services;
 

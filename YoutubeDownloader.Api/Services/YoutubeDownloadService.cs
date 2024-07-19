@@ -1,7 +1,4 @@
-﻿using YoutubeDownloader.Api.Models;
-using YoutubeExplode;
-using YoutubeExplode.Videos;
-using YoutubeExplode.Videos.Streams;
+﻿using YoutubeExplode;
 
 namespace YoutubeDownloader.Api.Services;
 

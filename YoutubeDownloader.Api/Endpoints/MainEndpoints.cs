@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using YoutubeDownloader.Api.Models;
 using YoutubeDownloader.Api.Models.Requests;
 using YoutubeDownloader.Api.Services;
 

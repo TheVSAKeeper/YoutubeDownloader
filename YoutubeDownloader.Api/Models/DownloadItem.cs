@@ -1,6 +1,4 @@
-﻿using YoutubeExplode.Videos;
-
-namespace YoutubeDownloader.Api.Models;
+﻿namespace YoutubeDownloader.Api.Models;
 
 public class DownloadItem
 {
