@@ -4,61 +4,33 @@ namespace YoutubeDownloader.Api.Models;
 
 public class DownloadItemSteam
 {
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public string FullPath { get; set; }
-    public DownloadItemState State { get; set; }
+    private double? _sizeMegaBytes;
+    private string? _title;
+    private string? _videoType;
+
+    public required int Id { get; set; }
+    public required string TempName { get; set; }
+    public required string TempPath { get; set; }
+    public required string FileName { get; set; }
+    public required string FilePath { get; set; }
+    public DownloadItemState State { get; set; } = DownloadItemState.Added;
     public IStreamInfo Stream { get; set; }
 
-    public bool IsCombineAfterDownload { get; set; }
-    public IStreamInfo CombineAfterDownloadStreamAudio { get; set; }
-    public IStreamInfo CombineAfterDownloadStreamVideo { get; set; }
+    public bool IsCombineAfterDownload => AudioStreamInfo is not null && VideoStreamInfo is not null;
+    public IAudioStreamInfo? AudioStreamInfo { get; set; }
+    public IVideoStreamInfo? VideoStreamInfo { get; set; }
 
     public bool IsNeedDownload => State == DownloadItemState.Wait;
 
-    public string Title
-    {
-        get
-        {
-            if (IsCombineAfterDownload)
-            {
-                VideoOnlyStreamInfo video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                return $"Muxed ({video.VideoQuality.MaxHeight} | {video.Container.Name}) ~{SizeMb}МБ";
-            }
+    public string Title => _title ??= IsCombineAfterDownload
+        ? $"Muxed (custom) ({VideoStreamInfo!.VideoQuality.MaxHeight} | {VideoStreamInfo.Container.Name}) ~{SizeMegaBytes}МБ"
+        : $"{Stream} {SizeMegaBytes}МБ";
 
-            return $"{Stream} {SizeMb}МБ";
-        }
-    }
+    public double SizeMegaBytes => _sizeMegaBytes ??= IsCombineAfterDownload
+        ? Math.Round(AudioStreamInfo!.Size.MegaBytes + VideoStreamInfo!.Size.MegaBytes, 2)
+        : Math.Round(Stream.Size.MegaBytes, 2);
 
-    public double SizeMb
-    {
-        get
-        {
-            if (IsCombineAfterDownload)
-            {
-                double size = CombineAfterDownloadStreamAudio.Size.MegaBytes + CombineAfterDownloadStreamVideo.Size.MegaBytes;
-                return Math.Round(size, 2);
-            }
-
-            return Math.Round(Stream.Size.MegaBytes, 2);
-        }
-    }
-
-    public string VideoType
-    {
-        get
-        {
-            if (IsCombineAfterDownload)
-            {
-                VideoOnlyStreamInfo video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                return video.Container.Name;
-            }
-
-            return Stream.Container.Name;
-        }
-    }
-
-    public Action? AfterDownloadAction { get; set; }
-    public string FileNamePath { get; set; }
-    public string FileName { get; set; }
+    public string VideoType => _videoType ??= IsCombineAfterDownload
+        ? VideoStreamInfo!.Container.Name
+        : Stream.Container.Name;
 }
