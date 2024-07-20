@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using YoutubeDownloader.Api.Application;
 using YoutubeDownloader.Api.Configurations;
@@ -9,15 +7,21 @@ namespace YoutubeDownloader.Api.Services;
 
 public class DownloadService
 {
+    private readonly FFmpegConverter _converter;
     private readonly List<DownloadItem> _items = [];
     private readonly ILogger<DownloadService> _logger;
     private readonly DownloadOptions _options;
     private readonly YoutubeDownloadService _youtubeDownloadService;
 
-    public DownloadService(ILogger<DownloadService> logger, YoutubeDownloadService youtubeDownloadService, IOptions<DownloadOptions> options)
+    public DownloadService(
+        ILogger<DownloadService> logger,
+        YoutubeDownloadService youtubeDownloadService,
+        FFmpegConverter converter,
+        IOptions<DownloadOptions> options)
     {
         _logger = logger;
         _youtubeDownloadService = youtubeDownloadService;
+        _converter = converter;
         _options = options.Value;
 
         RefreshDirectories();
@@ -66,12 +70,12 @@ public class DownloadService
 
         IAudioStreamInfo highestAudioStream = (IAudioStreamInfo)streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
 
-        string[] videoTypes = ["webm", "mp4"];
+        Container[] videoTypes = [Container.WebM, Container.Mp4];
 
-        foreach (string videoType in videoTypes)
+        foreach (Container videoType in videoTypes)
         {
             IVideoStreamInfo? highestVideoStream = streamManifest.GetVideoOnlyStreams()
-                .Where(info => string.Equals(info.Container.Name, videoType, StringComparison.InvariantCultureIgnoreCase))
+                .Where(streamInfo => streamInfo.Container == videoType)
                 .TryGetWithHighestVideoQuality();
 
             if (highestVideoStream is null)
@@ -89,6 +93,8 @@ public class DownloadService
                 AudioStreamInfo = highestAudioStream,
                 VideoStreamInfo = highestVideoStream
             });
+
+            streamId++;
         }
 
         DownloadItem item = DownloadItem.Create(id, url, streams, video).Result;
@@ -100,13 +106,30 @@ public class DownloadService
 
     public void SetStreamToDownload(Guid downloadId, int streamId)
     {
-        _logger.LogDebug("Try set stream to download: " + downloadId + " " + streamId);
+        _logger.LogDebug("Попытка установить поток для скачивания: {Id} {StreamId}", downloadId, streamId);
 
-        DownloadItem downloadItem = _items.First(x => x.Id == downloadId);
-        DownloadItemSteam stream = downloadItem.Streams.First(x => x.Id == streamId);
+        Operation<DownloadItem, string> itemOperation = FindItem(downloadId);
+
+        if (itemOperation.Ok == false)
+        {
+            _logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", downloadId, itemOperation.Error);
+            return;
+        }
+
+        DownloadItem item = itemOperation.Result;
+
+        Operation<DownloadItemSteam, string> streamOperation = item.GetStream(streamId);
+
+        if (streamOperation.Ok == false)
+        {
+            _logger.LogError("Не удалось получить поток: {StreamId} для элемента: {Id}, Ошибка: {Error}", streamId, downloadId, streamOperation.Error);
+            return;
+        }
+
+        DownloadItemSteam stream = streamOperation.Result;
         stream.State = DownloadItemState.Wait;
 
-        _logger.LogDebug("Set stream to download: " + downloadId + " " + streamId);
+        _logger.LogDebug("Успешно установлен поток для скачивания: {Id} {StreamId}", downloadId, streamId);
     }
 
     public async Task DownloadFromQueue()
@@ -127,8 +150,8 @@ public class DownloadService
         try
         {
             Task downloadTask = downloadStream.IsCombineAfterDownload
-                ? DownloadCombinedStream(downloadStream, downloadItem, cancellationTokenSource)
-                : DownloadMuxedStream(downloadStream, cancellationTokenSource);
+                ? DownloadCombinedStream(downloadStream, downloadItem, cancellationTokenSource.Token)
+                : DownloadMuxedStream(downloadStream, cancellationTokenSource.Token);
 
             await downloadTask;
             downloadStream.State = DownloadItemState.Ready;
@@ -145,17 +168,46 @@ public class DownloadService
 
     private void RefreshDirectories()
     {
-        Directory.CreateDirectory(_options.FullVideoFolderPath);
+        string fullVideoFolderPath = _options.FullVideoFolderPath;
+        string tempFolderPath = _options.TempFolderPath;
 
-        if (Directory.Exists(_options.TempFolderPath))
+        try
         {
-            Directory.Delete(_options.TempFolderPath, true);
-        }
+            if (Directory.Exists(fullVideoFolderPath) == false)
+            {
+                Directory.CreateDirectory(fullVideoFolderPath);
+                _logger.LogInformation("Создана директория для видео: {FullVideoFolderPath}", fullVideoFolderPath);
+            }
 
-        Directory.CreateDirectory(_options.TempFolderPath);
+            FileInfo[] tempFiles = Directory.GetFiles(tempFolderPath)
+                .Select(fileName => new FileInfo(fileName))
+                .ToArray();
+
+            double totalFileSize = tempFiles.Sum(fileInfo => fileInfo.Length) / 1024.0 / 1024;
+
+            foreach (FileInfo file in tempFiles)
+            {
+                File.Delete(file.FullName);
+                _logger.LogInformation("Удален временный файл: {File}", file);
+            }
+
+            _logger.LogInformation("Всего удалено временных файлов: {Count}, Объем: {TotalSize:F2} мегабайт", tempFiles.Length, totalFileSize);
+
+            FileInfo[] mainFiles = Directory.GetFiles(fullVideoFolderPath)
+                .Select(fileName => new FileInfo(fileName))
+                .ToArray();
+
+            double length = mainFiles.Sum(fileInfo => fileInfo.Length) / 1024.0 / 1024;
+
+            _logger.LogInformation("Всего файлов в директории: {Count}, Объем: {TotalSize:F2} мегабайт", mainFiles.Length, length);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Ошибка при обновлении директорий.");
+        }
     }
 
-    private async Task DownloadCombinedStream(DownloadItemSteam downloadStream, DownloadItem downloadItem, CancellationTokenSource cancellationTokenSource)
+    private async Task DownloadCombinedStream(DownloadItemSteam downloadStream, DownloadItem downloadItem, CancellationToken cancellationToken)
     {
         string audioPath = downloadStream.TempPath.AddSuffixToFileName("audio");
         string videoPath = downloadStream.TempPath.AddSuffixToFileName("video");
@@ -170,32 +222,39 @@ public class DownloadService
             audioPath,
             downloadStream.Title,
             downloadItem.Video.Title,
-            cancellationTokenSource.Token);
+            cancellationToken);
 
         ValueTask videoTask = _youtubeDownloadService.DownloadWithProgressAsync(downloadStream.VideoStreamInfo,
             videoPath,
             downloadStream.Title,
             downloadItem.Video.Title,
-            cancellationTokenSource.Token);
+            cancellationToken);
 
         await Task.WhenAll(audioTask.AsTask(), videoTask.AsTask());
 
         _logger.LogDebug("Попытка объединить видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
 
-        // todo переделать нормально объединение
+        double oldPercent = -1;
 
-        string args = $"""
-                       -i "{videoPath}" -i "{audioPath}" -c copy "{downloadStream.FilePath}"
-                       """;
+        Progress<double> progress = new(percent =>
+        {
+            if (percent - oldPercent < 0.02)
+            {
+                return;
+            }
 
-        await RunAsync(args);
+            _logger.LogDebug("Объединение: {Percent:P2}", percent);
+            oldPercent = percent;
+        });
+
+        await _converter.ProcessAsync(downloadStream.FilePath, new[] { audioPath, videoPath }, progress, cancellationToken);
 
         _logger.LogDebug("Успешно объединено видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
     }
 
-    private async Task DownloadMuxedStream(DownloadItemSteam downloadStream, CancellationTokenSource cancellationTokenSource)
+    private async Task DownloadMuxedStream(DownloadItemSteam downloadStream, CancellationToken cancellationToken)
     {
-        await _youtubeDownloadService.DownloadWithProgressAsync(downloadStream, cancellationTokenSource.Token);
+        await _youtubeDownloadService.DownloadWithProgressAsync(downloadStream, cancellationToken);
 
         try
         {
@@ -205,37 +264,6 @@ public class DownloadService
         catch (Exception exception)
         {
             _logger.LogError(exception, "Произошла ошибка при перемещении файла \nиз {TempPath} \nв  {FilePath}", downloadStream.TempPath, downloadStream.FilePath);
-        }
-    }
-
-    private static async Task RunAsync(string ffmpegCommand)
-    {
-        using Process process = new();
-
-        ProcessStartInfo processStartInfo2 = process.StartInfo = new ProcessStartInfo
-        {
-            WindowStyle = ProcessWindowStyle.Hidden,
-            FileName = @"C:\Programs\ffmpeg\ffmpeg.exe",
-            RedirectStandardError = true,
-            Arguments = ffmpegCommand
-        };
-
-        process.Start();
-
-        string? lastLine = null;
-        StringBuilder runMessage = new();
-
-        while (!process.StandardError.EndOfStream)
-        {
-            string? text = await process.StandardError.ReadLineAsync().ConfigureAwait(continueOnCapturedContext: false);
-            runMessage.AppendLine(text);
-            lastLine = text;
-        }
-
-        await process.WaitForExitAsync().ConfigureAwait(continueOnCapturedContext: false);
-
-        if (process.ExitCode != 0)
-        {
         }
     }
 }

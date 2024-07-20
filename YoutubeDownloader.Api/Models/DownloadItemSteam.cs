@@ -6,17 +6,17 @@ public class DownloadItemSteam
     private string? _title;
     private string? _videoType;
 
-    public required int Id { get; set; }
+    public required int Id { get; init; }
     public required string TempName { get; set; }
-    public required string TempPath { get; set; }
-    public required string FileName { get; set; }
-    public required string FilePath { get; set; }
+    public required string TempPath { get; init; }
+    public required string FileName { get; init; }
+    public required string FilePath { get; init; }
     public DownloadItemState State { get; set; } = DownloadItemState.Added;
-    public IStreamInfo Stream { get; set; }
+    public IStreamInfo Stream { get; init; }
 
     public bool IsCombineAfterDownload => AudioStreamInfo is not null && VideoStreamInfo is not null;
-    public IAudioStreamInfo? AudioStreamInfo { get; set; }
-    public IVideoStreamInfo? VideoStreamInfo { get; set; }
+    public IAudioStreamInfo? AudioStreamInfo { get; init; }
+    public IVideoStreamInfo? VideoStreamInfo { get; init; }
 
     public bool IsNeedDownload => State == DownloadItemState.Wait;
 
