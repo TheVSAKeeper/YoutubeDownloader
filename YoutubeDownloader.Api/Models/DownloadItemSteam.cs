@@ -1,22 +1,53 @@
-﻿namespace YoutubeDownloader.Api.Models;
+﻿using YoutubeDownloader.Api.Application.Extensions;
+
+namespace YoutubeDownloader.Api.Models;
 
 public class DownloadItemSteam
 {
+    private const string FileNameFormat = "{0}__{1}.{2}";
+
     private double? _sizeMegaBytes;
     private string? _title;
     private string? _videoType;
 
-    public required int Id { get; init; }
-    public required string TempName { get; set; }
-    public required string TempPath { get; init; }
-    public required string FileName { get; init; }
-    public required string FilePath { get; init; }
+    private DownloadItemSteam(int id, string tempName, string tempPath, string fileName, string filePath)
+    {
+        Id = id;
+        TempName = tempName;
+        TempPath = tempPath;
+        FileName = fileName;
+        FilePath = filePath;
+    }
+
+    private DownloadItemSteam(int id, string tempName, string tempPath, string fileName, string filePath, IStreamInfo stream)
+        : this(id, tempName, tempPath, fileName, filePath)
+    {
+        Stream = stream;
+    }
+
+    private DownloadItemSteam(int id, string tempName, string tempPath, string fileName, string filePath, IAudioStreamInfo audioStream, IVideoStreamInfo videoStream)
+        : this(id, tempName, tempPath, fileName, filePath)
+    {
+        Id = id;
+        TempName = tempName;
+        TempPath = tempPath;
+        FileName = fileName;
+        FilePath = filePath;
+        AudioStreamInfo = audioStream;
+        VideoStreamInfo = videoStream;
+    }
+
+    public int Id { get; }
+    public string TempName { get; }
+    public string TempPath { get; }
+    public string FileName { get; }
+    public string FilePath { get; }
     public DownloadItemState State { get; set; } = DownloadItemState.Added;
-    public IStreamInfo Stream { get; init; }
+    public IStreamInfo? Stream { get; }
 
     public bool IsCombineAfterDownload => AudioStreamInfo is not null && VideoStreamInfo is not null;
-    public IAudioStreamInfo? AudioStreamInfo { get; init; }
-    public IVideoStreamInfo? VideoStreamInfo { get; init; }
+    public IAudioStreamInfo? AudioStreamInfo { get; }
+    public IVideoStreamInfo? VideoStreamInfo { get; }
 
     public bool IsNeedDownload => State == DownloadItemState.Wait;
 
@@ -26,9 +57,30 @@ public class DownloadItemSteam
 
     public double SizeMegaBytes => _sizeMegaBytes ??= IsCombineAfterDownload
         ? Math.Round(AudioStreamInfo!.Size.MegaBytes + VideoStreamInfo!.Size.MegaBytes, 2)
-        : Math.Round(Stream.Size.MegaBytes, 2);
+        : Math.Round(Stream!.Size.MegaBytes, 2);
 
     public string VideoType => _videoType ??= IsCombineAfterDownload
         ? VideoStreamInfo!.Container.Name
-        : Stream.Container.Name;
+        : Stream!.Container.Name;
+
+    public static Operation<DownloadItemSteam> Create(int id, string tempPath, string filePath, Video video, IStreamInfo stream)
+    {
+        (string tempName, string fileName) = GetFileNames(id, video, stream);
+
+        return new DownloadItemSteam(id, tempName, Path.Combine(tempPath, tempName), fileName, Path.Combine(filePath, fileName), stream);
+    }
+
+    public static Operation<DownloadItemSteam> Create(int id, string tempPath, string filePath, Video video, IAudioStreamInfo audioStream, IVideoStreamInfo videoStream)
+    {
+        (string tempName, string fileName) = GetFileNames(id, video, videoStream);
+
+        return new DownloadItemSteam(id, tempName, Path.Combine(tempPath, tempName), fileName, Path.Combine(filePath, fileName), audioStream, videoStream);
+    }
+
+    private static (string tempName, string fileName) GetFileNames(int id, Video video, IStreamInfo stream)
+    {
+        string tempName = string.Format(FileNameFormat, video.Id, id, stream.Container.Name);
+        string fileName = string.Format(FileNameFormat, video.GetVideoFileName(), id, stream.Container.Name);
+        return (tempName, fileName);
+    }
 }

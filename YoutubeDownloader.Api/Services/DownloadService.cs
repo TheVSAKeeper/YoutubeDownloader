@@ -1,6 +1,5 @@
-﻿using System.Text.RegularExpressions;
-using Microsoft.Extensions.Options;
-using YoutubeDownloader.Api.Application;
+﻿using Microsoft.Extensions.Options;
+using YoutubeDownloader.Api.Application.Extensions;
 using YoutubeDownloader.Api.Configurations;
 
 namespace YoutubeDownloader.Api.Services;
@@ -52,18 +51,9 @@ public class DownloadService
 
         StreamManifest streamManifest = await _youtubeDownloadService.GetStreamManifestAsync(url);
 
-        Regex illegalInFileName = new($"[{Regex.Escape(new string(Path.GetInvalidFileNameChars()))}]", RegexOptions.Compiled);
-        string videoTitle = illegalInFileName.Replace(video.Title, "_");
-
-        List<DownloadItemSteam> streams = streamManifest.Streams.Select((stream, i) => new DownloadItemSteam
-            {
-                Id = i,
-                TempName = $"{id}_{i}.{stream.Container.Name}",
-                TempPath = Path.Combine(_options.TempFolderPath, $"{id}_{i}.{stream.Container.Name}"),
-                FileName = $"{videoTitle}.{stream.Container.Name}",
-                FilePath = Path.Combine(_options.FullVideoFolderPath, $"{videoTitle}.{stream.Container.Name}"),
-                Stream = stream
-            })
+        List<DownloadItemSteam> streams = streamManifest.Streams
+            .Select((stream, i) => DownloadItemSteam.Create(i, _options.TempFolderPath, _options.FullVideoFolderPath, video, stream))
+            .GetSuccessfulResults()
             .ToList();
 
         int streamId = streams.Count;
@@ -83,17 +73,19 @@ public class DownloadService
                 continue;
             }
 
-            streams.Insert(0, new DownloadItemSteam
-            {
-                Id = streamId,
-                TempName = $"{id}_{streamId}.{videoType}",
-                TempPath = Path.Combine(_options.TempFolderPath, $"{id}_{streamId}.{videoType}"),
-                FileName = $"{videoTitle}.{videoType}",
-                FilePath = Path.Combine(_options.FullVideoFolderPath, $"{videoTitle}.{videoType}"),
-                AudioStreamInfo = highestAudioStream,
-                VideoStreamInfo = highestVideoStream
-            });
+            Operation<DownloadItemSteam> itemOperation = DownloadItemSteam.Create(streamId,
+                _options.TempFolderPath,
+                _options.FullVideoFolderPath,
+                video,
+                highestAudioStream,
+                highestVideoStream);
 
+            if (itemOperation.Ok == false)
+            {
+                continue;
+            }
+
+            streams.Insert(0, itemOperation.Result);
             streamId++;
         }
 

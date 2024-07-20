@@ -47,6 +47,14 @@ internal static class MainEndpointsEndpointsExtensions
             .Produces<Ok<StateModel>>()
             .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
+
+        group.MapGet("download-item/{id:guid}/video", GetDownloadItemVideo)
+            .WithName("GetDownloadItemVideo")
+            .WithSummary("Получить видео из элемента загрузки")
+            .WithDescription("Возвращает видео элемента загрузки. Элемент идентифицируется по его уникальному ID.")
+            .Produces<Ok<Video>>()
+            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithOpenApi();
     }
 
     private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload(AddToDownloadRequest request, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
@@ -149,5 +157,18 @@ internal static class MainEndpointsEndpointsExtensions
 
         logger.LogError("Не удалось получить состояние модели для элемента: {Id}", id);
         return TypedResults.BadRequest("Не удалось получить состояние");
+    }
+
+    private static Results<Ok<Video>, BadRequest<string>> GetDownloadItemVideo(Guid id, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    {
+        Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
+
+        if (itemOperation.Ok)
+        {
+            return TypedResults.Ok(itemOperation.Result.Video);
+        }
+
+        logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", id, itemOperation.Error);
+        return TypedResults.BadRequest(itemOperation.Error);
     }
 }

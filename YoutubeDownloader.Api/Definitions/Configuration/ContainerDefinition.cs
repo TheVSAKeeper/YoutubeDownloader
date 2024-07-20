@@ -1,4 +1,4 @@
-﻿using YoutubeDownloader.Api.Application;
+﻿using YoutubeDownloader.Api.Application.Extensions;
 using YoutubeDownloader.Api.Configurations;
 
 namespace YoutubeDownloader.Api.Definitions.Configuration;

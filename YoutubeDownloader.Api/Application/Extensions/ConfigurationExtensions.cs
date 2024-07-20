@@ -1,4 +1,4 @@
-﻿namespace YoutubeDownloader.Api.Application;
+﻿namespace YoutubeDownloader.Api.Application.Extensions;
 
 public static class ConfigurationExtensions
 {

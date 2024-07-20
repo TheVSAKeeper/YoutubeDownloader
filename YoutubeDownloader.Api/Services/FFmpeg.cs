@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using CliWrap;
 using CliWrap.Exceptions;
 using Microsoft.Extensions.Options;
-using YoutubeDownloader.Api.Application;
+using YoutubeDownloader.Api.Application.Extensions;
 using YoutubeDownloader.Api.Configurations;
 
 namespace YoutubeDownloader.Api.Services;
