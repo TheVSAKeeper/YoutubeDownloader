@@ -11,8 +11,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "YoutubeExplode", "YoutubeEx
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeExplode", "YoutubeExplode\YoutubeExplode\YoutubeExplode.csproj", "{2DFC1498-406E-442D-9A4B-91DED70109A0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeExplode.Converter", "YoutubeExplode\YoutubeExplode.Converter\YoutubeExplode.Converter.csproj", "{9D483369-9153-4958-97AC-B2B272D94DD1}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,10 +29,6 @@ Global
 		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2DFC1498-406E-442D-9A4B-91DED70109A0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9D483369-9153-4958-97AC-B2B272D94DD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9D483369-9153-4958-97AC-B2B272D94DD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9D483369-9153-4958-97AC-B2B272D94DD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9D483369-9153-4958-97AC-B2B272D94DD1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -44,6 +38,5 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2DFC1498-406E-442D-9A4B-91DED70109A0} = {168940C0-700B-4C83-8B7B-A23D93758E65}
-		{9D483369-9153-4958-97AC-B2B272D94DD1} = {168940C0-700B-4C83-8B7B-A23D93758E65}
 	EndGlobalSection
 EndGlobal
