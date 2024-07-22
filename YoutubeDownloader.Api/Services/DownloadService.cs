@@ -51,8 +51,8 @@ public class DownloadService
 
         StreamManifest streamManifest = await _youtubeDownloadService.GetStreamManifestAsync(url);
 
-        List<DownloadItemSteam> streams = streamManifest.Streams
-            .Select((stream, i) => DownloadItemSteam.Create(i, _options.TempFolderPath, _options.FullVideoFolderPath, video, stream))
+        List<DownloadItemStream> streams = streamManifest.Streams
+            .Select((stream, i) => DownloadItemStream.Create(i, _options.TempFolderPath, _options.FullVideoFolderPath, video, stream))
             .GetSuccessfulResults()
             .ToList();
 
@@ -73,7 +73,7 @@ public class DownloadService
                 continue;
             }
 
-            Operation<DownloadItemSteam> itemOperation = DownloadItemSteam.Create(streamId,
+            Operation<DownloadItemStream> itemOperation = DownloadItemStream.Create(streamId,
                 _options.TempFolderPath,
                 _options.FullVideoFolderPath,
                 video,
@@ -110,7 +110,7 @@ public class DownloadService
 
         DownloadItem item = itemOperation.Result;
 
-        Operation<DownloadItemSteam, string> streamOperation = item.GetStream(streamId);
+        Operation<DownloadItemStream, string> streamOperation = item.GetStream(streamId);
 
         if (streamOperation.Ok == false)
         {
@@ -118,7 +118,7 @@ public class DownloadService
             return;
         }
 
-        DownloadItemSteam stream = streamOperation.Result;
+        DownloadItemStream stream = streamOperation.Result;
         stream.State = DownloadItemState.Wait;
 
         _logger.LogDebug("Успешно установлен поток для скачивания: {Id} {StreamId}", downloadId, streamId);
@@ -127,13 +127,14 @@ public class DownloadService
     public async Task DownloadFromQueue()
     {
         DownloadItem? downloadItem = _items.FirstOrDefault(x => x.Streams.Any(itemSteam => itemSteam.State == DownloadItemState.Wait));
+        DownloadItemStream? downloadStream = downloadItem?.GetWaitStreams().FirstOrDefault();
 
-        if (downloadItem == null)
+        if (downloadStream is null || downloadItem is null)
         {
+            _logger.LogWarning("Очередь скачивания пустая");
             return;
         }
 
-        DownloadItemSteam downloadStream = downloadItem.Streams.First(x => x.State == DownloadItemState.Wait);
         downloadStream.State = DownloadItemState.InProcess;
         _logger.LogDebug("Попытка скачать из очереди: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
 
@@ -199,7 +200,7 @@ public class DownloadService
         }
     }
 
-    private async Task DownloadCombinedStream(DownloadItemSteam downloadStream, DownloadItem downloadItem, CancellationToken cancellationToken)
+    private async Task DownloadCombinedStream(DownloadItemStream downloadStream, DownloadItem downloadItem, CancellationToken cancellationToken)
     {
         string audioPath = downloadStream.TempPath.AddSuffixToFileName("audio");
         string videoPath = downloadStream.TempPath.AddSuffixToFileName("video");
@@ -244,7 +245,7 @@ public class DownloadService
         _logger.LogDebug("Успешно объединено видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
     }
 
-    private async Task DownloadMuxedStream(DownloadItemSteam downloadStream, CancellationToken cancellationToken)
+    private async Task DownloadMuxedStream(DownloadItemStream downloadStream, CancellationToken cancellationToken)
     {
         await _youtubeDownloadService.DownloadWithProgressAsync(downloadStream, cancellationToken);
 

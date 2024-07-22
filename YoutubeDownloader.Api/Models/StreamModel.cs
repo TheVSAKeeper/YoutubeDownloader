@@ -15,9 +15,9 @@ public class StreamModel
 
     public string Title { get; }
 
-    public static Operation<StreamModel> Create(DownloadItemSteam item) =>
+    public static Operation<StreamModel> Create(DownloadItemStream item) =>
         new StreamModel(item.Id, item.State.ToString(), item.Title);
 
-    public static Operation<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemSteam> steams) =>
+    public static Operation<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemStream> steams) =>
         Operation.Result(steams.Select(steam => Create(steam).Result));
 }

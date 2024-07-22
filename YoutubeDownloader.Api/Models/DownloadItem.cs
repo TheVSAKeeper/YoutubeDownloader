@@ -2,33 +2,33 @@
 
 public class DownloadItem
 {
-    private readonly List<DownloadItemSteam> _streams;
+    private readonly List<DownloadItemStream> _streams;
 
-    private DownloadItem(Guid id, string url, List<DownloadItemSteam> streams, Video video)
+    private DownloadItem(Guid id, string url, IEnumerable<DownloadItemStream> streams, Video video)
     {
         Id = id;
         Url = url;
-        _streams = streams;
+        _streams = streams.ToList();
         Video = video;
     }
 
     public Guid Id { get; }
     public string Url { get; }
 
-    public IEnumerable<DownloadItemSteam> Streams => _streams;
+    public IEnumerable<DownloadItemStream> Streams => _streams;
 
     public Video Video { get; }
 
-    public bool IsNeedDownloadAnyStream => Streams.Any(steam => steam.IsNeedDownload);
+    public bool IsNeedDownloadAnyStream => Streams.Any(stream => stream.IsNeedDownload);
 
-    public static Operation<DownloadItem, string> Create(Guid id, string url, IEnumerable<DownloadItemSteam> streams, Video video)
+    public static Operation<DownloadItem, string> Create(Guid id, string url, IEnumerable<DownloadItemStream> streams, Video video)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
             return Operation.Error<string>("URL не может быть null или пустым.");
         }
 
-        List<DownloadItemSteam> streamsList = streams.ToList();
+        List<DownloadItemStream> streamsList = streams.ToList();
 
         if (streamsList.Count == 0)
         {
@@ -38,12 +38,15 @@ public class DownloadItem
         return new DownloadItem(id, url, streamsList, video);
     }
 
-    public Operation<DownloadItemSteam, string> GetStream(int id)
+    public Operation<DownloadItemStream, string> GetStream(int id)
     {
-        DownloadItemSteam? itemSteam = Streams.FirstOrDefault(downloadItem => downloadItem.Id == id);
+        DownloadItemStream? itemSteam = Streams.FirstOrDefault(downloadItem => downloadItem.Id == id);
 
         return itemSteam is not null
             ? Operation.Result(itemSteam)
-            : Operation.Error<string>($"DownloadItemSteam c id {id} не найден");
+            : Operation.Error<string>($"DownloadItemStream c id {id} не найден");
     }
+
+    public IEnumerable<DownloadItemStream> GetWaitStreams() =>
+        Streams.Where(stream => stream.State == DownloadItemState.Wait);
 }

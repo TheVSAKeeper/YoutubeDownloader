@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
 using YoutubeDownloader.Api.Models.Requests;
 using YoutubeDownloader.Api.Services;
 
@@ -20,44 +19,35 @@ internal static class MainEndpointsEndpointsExtensions
             .WithName("AddToDownload")
             .WithSummary("Добавить новый элемент в очередь загрузки")
             .WithDescription("Позволяет добавить новый элемент в очередь загрузки. Элемент идентифицируется по его уникальному ID.")
-            .Produces<Ok<StateModel>>()
-            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
         group.MapGet("add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload)
             .WithName("AddStreamToDownload")
             .WithSummary("Добавить поток к элементу загрузки")
             .WithDescription("Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.")
-            .Produces<Ok<string>>()
-            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
+            .WithMetadata()
             .WithOpenApi();
 
         group.MapGet("download/{id:guid}/{streamId:int}", Download)
             .WithName("Download")
             .WithSummary("Скачать поток элемента загрузки")
             .WithDescription("Позволяет скачать конкретный поток элемента загрузки. Элемент и поток идентифицируются по их уникальным ID.")
-            .Produces<FileStreamHttpResult>()
-            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
         group.MapGet("state/{id:guid}", GetDownloadItemState)
             .WithName("GetDownloadItemState")
             .WithSummary("Получить состояние элемента загрузки")
             .WithDescription("Возвращает текущее состояние элемента загрузки. Элемент идентифицируется по его уникальному ID.")
-            .Produces<Ok<StateModel>>()
-            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
 
         group.MapGet("download-item/{id:guid}/video", GetDownloadItemVideo)
             .WithName("GetDownloadItemVideo")
             .WithSummary("Получить видео из элемента загрузки")
             .WithDescription("Возвращает видео элемента загрузки. Элемент идентифицируется по его уникальному ID.")
-            .Produces<Ok<Video>>()
-            .Produces<BadRequest<string>>(StatusCodes.Status400BadRequest)
             .WithOpenApi();
     }
 
-    private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload(AddToDownloadRequest request, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload(AddToDownloadRequest request, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         try
         {
@@ -81,7 +71,7 @@ internal static class MainEndpointsEndpointsExtensions
         }
     }
 
-    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         try
         {
@@ -98,7 +88,7 @@ internal static class MainEndpointsEndpointsExtensions
         }
     }
 
-    private static Results<FileStreamHttpResult, BadRequest<string>> Download(Guid id, int streamId, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<FileStreamHttpResult, BadRequest<string>> Download(Guid id, int streamId, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         logger.LogInformation("Скачивание потока: {StreamId} для элемента: {Id}", streamId, id);
         Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
@@ -111,7 +101,7 @@ internal static class MainEndpointsEndpointsExtensions
 
         DownloadItem item = itemOperation.Result;
 
-        Operation<DownloadItemSteam, string> streamOperation = item.GetStream(streamId);
+        Operation<DownloadItemStream, string> streamOperation = item.GetStream(streamId);
 
         if (streamOperation.Ok == false)
         {
@@ -119,7 +109,7 @@ internal static class MainEndpointsEndpointsExtensions
             return TypedResults.BadRequest(streamOperation.Error);
         }
 
-        DownloadItemSteam stream = streamOperation.Result;
+        DownloadItemStream stream = streamOperation.Result;
 
         if (stream.State != DownloadItemState.Ready)
         {
@@ -134,7 +124,7 @@ internal static class MainEndpointsEndpointsExtensions
         return TypedResults.Stream(fileStream, $"video/{type}", stream.FileName, enableRangeProcessing: true);
     }
 
-    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         logger.LogInformation("Получение состояния элемента загрузки: {Id}", id);
         Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
@@ -159,7 +149,7 @@ internal static class MainEndpointsEndpointsExtensions
         return TypedResults.BadRequest("Не удалось получить состояние");
     }
 
-    private static Results<Ok<Video>, BadRequest<string>> GetDownloadItemVideo(Guid id, [FromServices] DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<Video>, BadRequest<string>> GetDownloadItemVideo(Guid id, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
 

@@ -11,11 +11,7 @@ namespace YoutubeDownloader.Api.Services;
 
 public partial class FFmpeg(IOptions<FFmpegOptions> options)
 {
-    public async ValueTask ExecuteAsync(
-        string arguments,
-        IProgress<double>? progress,
-        CancellationToken cancellationToken = default
-    )
+    public async ValueTask ExecuteAsync(string arguments, IProgress<double>? progress, CancellationToken cancellationToken = default)
     {
         StringBuilder stdErrBuffer = new();
 

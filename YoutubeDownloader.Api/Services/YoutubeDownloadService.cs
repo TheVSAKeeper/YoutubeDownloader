@@ -33,8 +33,9 @@ public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<Youtube
         return DownloadAsync(streamInfo, path, progress, cancellationToken);
     }
 
-    public ValueTask DownloadWithProgressAsync(DownloadItemSteam downloadStream, CancellationToken token) =>
-        DownloadWithProgressAsync(downloadStream.Stream, downloadStream.TempPath, downloadStream.Title, downloadStream.FileName, token);
+    public ValueTask DownloadWithProgressAsync(DownloadItemStream downloadStream, CancellationToken token) => downloadStream.Stream != null
+        ? DownloadWithProgressAsync(downloadStream.Stream, downloadStream.TempPath, downloadStream.Title, downloadStream.FileName, token)
+        : ValueTask.CompletedTask;
 
     public ValueTask<StreamManifest> GetStreamManifestAsync(string url) =>
         youtubeClient.Videos.Streams.GetManifestAsync(url);
