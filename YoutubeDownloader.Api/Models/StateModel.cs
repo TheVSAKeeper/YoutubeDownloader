@@ -4,14 +4,14 @@ public class StateModel
 {
     private readonly List<StreamModel> _streams;
 
-    private StateModel(Guid downloadId, string title, IEnumerable<StreamModel> streams)
+    private StateModel(string downloadId, string title, IEnumerable<StreamModel> streams)
     {
         DownloadId = downloadId;
         Title = title;
         _streams = streams.ToList();
     }
 
-    public Guid DownloadId { get; }
+    public string DownloadId { get; }
 
     public string Title { get; }
     public IEnumerable<StreamModel> Streams => _streams;

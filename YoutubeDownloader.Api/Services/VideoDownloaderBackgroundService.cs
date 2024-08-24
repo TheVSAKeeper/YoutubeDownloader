@@ -4,6 +4,12 @@ public class VideoDownloaderBackgroundService(ILogger<VideoDownloaderBackgroundS
 {
     private readonly PeriodicTimer _timer = new(TimeSpan.FromSeconds(5));
 
+    public override async Task StopAsync(CancellationToken stoppingToken)
+    {
+        _timer.Dispose();
+        await base.StopAsync(stoppingToken);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("{Name} is starting.", nameof(VideoDownloaderBackgroundService));
@@ -17,11 +23,5 @@ public class VideoDownloaderBackgroundService(ILogger<VideoDownloaderBackgroundS
                 await downloadService.DownloadFromQueue();
             }
         }
-    }
-
-    public override async Task StopAsync(CancellationToken stoppingToken)
-    {
-        _timer.Dispose();
-        await base.StopAsync(stoppingToken);
     }
 }

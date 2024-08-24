@@ -15,9 +15,13 @@ public class StreamModel
 
     public string Title { get; }
 
-    public static Operation<StreamModel> Create(DownloadItemStream item) =>
-        new StreamModel(item.Id, item.State.ToString(), item.Title);
+    public static Operation<StreamModel> Create(DownloadItemStream item)
+    {
+        return new StreamModel(item.Id, item.State.ToString(), item.Title);
+    }
 
-    public static Operation<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemStream> steams) =>
-        Operation.Result(steams.Select(steam => Create(steam).Result));
+    public static Operation<IEnumerable<StreamModel>> Create(IEnumerable<DownloadItemStream> steams)
+    {
+        return Operation.Result(steams.Select(steam => Create(steam).Result));
+    }
 }

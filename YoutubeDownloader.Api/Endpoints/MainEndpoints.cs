@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using YoutubeDownloader.Api.Models.Requests;
 using YoutubeDownloader.Api.Services;
 
@@ -6,7 +7,10 @@ namespace YoutubeDownloader.Api.Endpoints;
 
 public sealed class MainEndpointsEndpoints : AppDefinition
 {
-    public override void ConfigureApplication(WebApplication app) => app.MapMainEndpointsEndpoints();
+    public override void ConfigureApplication(WebApplication app)
+    {
+        app.MapMainEndpointsEndpoints();
+    }
 }
 
 internal static class MainEndpointsEndpointsExtensions
@@ -21,33 +25,33 @@ internal static class MainEndpointsEndpointsExtensions
             .WithDescription("Позволяет добавить новый элемент в очередь загрузки. Элемент идентифицируется по его уникальному ID.")
             .WithOpenApi();
 
-        group.MapGet("add-stream-to-download/{id:guid}/{streamId:int}", AddStreamToDownload)
+        group.MapPost("add-stream-to-download", AddStreamToDownload)
             .WithName("AddStreamToDownload")
             .WithSummary("Добавить поток к элементу загрузки")
             .WithDescription("Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.")
             .WithMetadata()
             .WithOpenApi();
 
-        group.MapGet("download/{id:guid}/{streamId:int}", Download)
+        group.MapGet("download", Download)
             .WithName("Download")
             .WithSummary("Скачать поток элемента загрузки")
             .WithDescription("Позволяет скачать конкретный поток элемента загрузки. Элемент и поток идентифицируются по их уникальным ID.")
             .WithOpenApi();
 
-        group.MapGet("state/{id:guid}", GetDownloadItemState)
+        group.MapGet("state/{id}", GetDownloadItemState)
             .WithName("GetDownloadItemState")
             .WithSummary("Получить состояние элемента загрузки")
             .WithDescription("Возвращает текущее состояние элемента загрузки. Элемент идентифицируется по его уникальному ID.")
             .WithOpenApi();
 
-        group.MapGet("download-item/{id:guid}/video", GetDownloadItemVideo)
+        group.MapGet("download-item/{id}/video", GetDownloadItemVideo)
             .WithName("GetDownloadItemVideo")
             .WithSummary("Получить видео из элемента загрузки")
             .WithDescription("Возвращает видео элемента загрузки. Элемент идентифицируется по его уникальному ID.")
             .WithOpenApi();
     }
 
-    private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload(AddToDownloadRequest request, DownloadService downloadService, ILogger<Endpoint> logger)
+    private static async Task<Results<Ok<StateModel>, BadRequest<string>>> AddToDownload([FromBody] AddToDownloadRequest request, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         try
         {
@@ -71,41 +75,41 @@ internal static class MainEndpointsEndpointsExtensions
         }
     }
 
-    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload(Guid id, int streamId, DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<string>, BadRequest<string>> AddStreamToDownload([FromBody] AddStreamToDownloadRequest request, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         try
         {
-            logger.LogInformation("Добавление потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
-            downloadService.SetStreamToDownload(id, streamId);
+            logger.LogInformation("Добавление потока: {StreamId} в очередь загрузки для элемента: {Id}", request.StreamId, request.Id);
+            downloadService.SetStreamToDownload(request.Id, request.StreamId);
 
-            logger.LogInformation("Успешно добавлен поток: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
+            logger.LogInformation("Успешно добавлен поток: {StreamId} в очередь загрузки для элемента: {Id}", request.StreamId, request.Id);
             return TypedResults.Ok("Всё оки");
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Произошла ошибка при добавлении потока: {StreamId} в очередь загрузки для элемента: {Id}", streamId, id);
+            logger.LogError(exception, "Произошла ошибка при добавлении потока: {StreamId} в очередь загрузки для элемента: {Id}", request.StreamId, request.Id);
             return TypedResults.BadRequest(exception.Message);
         }
     }
 
-    private static Results<FileStreamHttpResult, BadRequest<string>> Download(Guid id, int streamId, DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<FileStreamHttpResult, BadRequest<string>> Download([FromBody] AddStreamToDownloadRequest request, DownloadService downloadService, ILogger<Endpoint> logger)
     {
-        logger.LogInformation("Скачивание потока: {StreamId} для элемента: {Id}", streamId, id);
-        Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
+        logger.LogInformation("Скачивание потока: {StreamId} для элемента: {Id}", request.StreamId, request.Id);
+        Operation<DownloadItem, string> itemOperation = downloadService.FindItem(request.Id);
 
         if (itemOperation.Ok == false)
         {
-            logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", id, itemOperation.Error);
+            logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", request.Id, itemOperation.Error);
             return TypedResults.BadRequest(itemOperation.Error);
         }
 
         DownloadItem item = itemOperation.Result;
 
-        Operation<DownloadItemStream, string> streamOperation = item.GetStream(streamId);
+        Operation<DownloadItemStream, string> streamOperation = item.GetStream(request.StreamId);
 
         if (streamOperation.Ok == false)
         {
-            logger.LogError("Не удалось получить поток: {StreamId} для элемента: {Id}, Ошибка: {Error}", streamId, id, streamOperation.Error);
+            logger.LogError("Не удалось получить поток: {StreamId} для элемента: {Id}, Ошибка: {Error}", request.StreamId, request.Id, streamOperation.Error);
             return TypedResults.BadRequest(streamOperation.Error);
         }
 
@@ -113,18 +117,18 @@ internal static class MainEndpointsEndpointsExtensions
 
         if (stream.State != DownloadItemState.Ready)
         {
-            logger.LogError("Поток: {StreamId} для элемента: {Id} не готов, Текущее состояние: {State}", streamId, id, stream.State);
+            logger.LogError("Поток: {StreamId} для элемента: {Id} не готов, Текущее состояние: {State}", request.StreamId, request.Id, stream.State);
             return TypedResults.BadRequest($"Состояние не готово. Текущее {stream.State}");
         }
 
         string type = stream.VideoType;
         FileStream fileStream = new(stream.FilePath, FileMode.Open, FileAccess.Read);
 
-        logger.LogInformation("Успешно скачан поток: {StreamId} для элемента: {Id}", streamId, id);
+        logger.LogInformation("Успешно скачан поток: {StreamId} для элемента: {Id}", request.StreamId, request.Id);
         return TypedResults.Stream(fileStream, $"video/{type}", stream.FileName, enableRangeProcessing: true);
     }
 
-    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(Guid id, DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<StateModel>, BadRequest<string>> GetDownloadItemState(string id, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         logger.LogInformation("Получение состояния элемента загрузки: {Id}", id);
         Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
@@ -149,7 +153,7 @@ internal static class MainEndpointsEndpointsExtensions
         return TypedResults.BadRequest("Не удалось получить состояние");
     }
 
-    private static Results<Ok<Video>, BadRequest<string>> GetDownloadItemVideo(Guid id, DownloadService downloadService, ILogger<Endpoint> logger)
+    private static Results<Ok<Video>, BadRequest<string>> GetDownloadItemVideo(string id, DownloadService downloadService, ILogger<Endpoint> logger)
     {
         Operation<DownloadItem, string> itemOperation = downloadService.FindItem(id);
 

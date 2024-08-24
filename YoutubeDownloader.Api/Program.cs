@@ -1,28 +1,24 @@
-using Serilog;
-using Serilog.Events;
+using NLog;
+using NLog.Web;
+
+Logger? logger = LogManager.Setup()
+    .LoadConfigurationFromAppSettings()
+    .GetCurrentClassLogger();
+
+logger.Debug("init main");
 
 try
 {
-    Log.Logger = new LoggerConfiguration()
-        .MinimumLevel.Debug()
-        .MinimumLevel.Override("Microsoft.AspNetCore.Hosting", LogEventLevel.Warning)
-        .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", LogEventLevel.Warning)
-        .MinimumLevel.Override("Microsoft.AspNetCore.Routing", LogEventLevel.Warning)
-        .Enrich.FromLogContext()
-        .WriteTo.Console()
-        .CreateLogger();
-
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-    builder.Services.AddSerilog();
+    builder.Logging.ClearProviders();
+    builder.Host.UseNLog();
 
     builder.AddDefinitions(typeof(Program));
 
     WebApplication app = builder.Build();
 
     app.UseDefinitions();
-
-    app.UseSerilogRequestLogging();
 
     app.Run();
 
@@ -37,11 +33,11 @@ catch (Exception exception)
         throw;
     }
 
-    Log.Fatal(exception, "Unhandled exception");
+    logger.Fatal(exception, "Unhandled exception");
 
     return 0;
 }
 finally
 {
-    Log.CloseAndFlush();
+    LogManager.Shutdown();
 }

@@ -47,36 +47,24 @@
         }
       }
     },
-    "/api/main/add-stream-to-download/{id}/{streamId}": {
-      "get": {
+    "/api/main/add-stream-to-download": {
+      "post": {
         "tags": [
           "Main"
         ],
         "summary": "Добавить поток к элементу загрузки",
         "description": "Позволяет добавить новый поток к элементу загрузки. Элемент и поток идентифицируются по их уникальным ID.",
         "operationId": "AddStreamToDownload",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddStreamToDownloadRequest"
+              }
             }
           },
-          {
-            "name": "streamId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -101,7 +89,7 @@
         }
       }
     },
-    "/api/main/download/{id}/{streamId}": {
+    "/api/main/download": {
       "get": {
         "tags": [
           "Main"
@@ -109,28 +97,16 @@
         "summary": "Скачать поток элемента загрузки",
         "description": "Позволяет скачать конкретный поток элемента загрузки. Элемент и поток идентифицируются по их уникальным ID.",
         "operationId": "Download",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddStreamToDownloadRequest"
+              }
             }
           },
-          {
-            "name": "streamId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
+          "required": true
+        },
         "responses": {
           "400": {
             "description": "Bad Request",
@@ -158,10 +134,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "style": "simple",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -202,10 +176,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "style": "simple",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -236,6 +208,20 @@
   },
   "components": {
     "schemas": {
+      "AddStreamToDownloadRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "streamId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "AddToDownloadRequest": {
         "type": "object",
         "properties": {
@@ -327,7 +313,7 @@
         "properties": {
           "downloadId": {
             "type": "string",
-            "format": "uuid",
+            "nullable": true,
             "readOnly": true
           },
           "title": {
@@ -380,86 +366,6 @@
         },
         "additionalProperties": false
       },
-      "TimeSpan": {
-        "type": "object",
-        "properties": {
-          "ticks": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "days": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "hours": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "milliseconds": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "microseconds": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "nanoseconds": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "minutes": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "seconds": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          },
-          "totalDays": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalHours": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalMilliseconds": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalMicroseconds": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalNanoseconds": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalMinutes": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          },
-          "totalSeconds": {
-            "type": "number",
-            "format": "double",
-            "readOnly": true
-          }
-        },
-        "additionalProperties": false
-      },
       "Video": {
         "type": "object",
         "properties": {
@@ -487,7 +393,9 @@
             "nullable": true
           },
           "duration": {
-            "$ref": "#/components/schemas/TimeSpan"
+            "type": "string",
+            "format": "date-span",
+            "nullable": true
           },
           "thumbnails": {
             "type": "array",

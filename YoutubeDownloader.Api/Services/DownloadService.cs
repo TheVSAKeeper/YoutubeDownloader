@@ -6,10 +6,10 @@ namespace YoutubeDownloader.Api.Services;
 
 public class DownloadService
 {
-    private readonly FFmpegConverter _converter;
-    private readonly List<DownloadItem> _items = [];
-    private readonly ILogger<DownloadService> _logger;
     private readonly DownloadOptions _options;
+    private readonly FFmpegConverter _converter;
+    private readonly ILogger<DownloadService> _logger;
+    private readonly List<DownloadItem> _items = [];
     private readonly YoutubeDownloadService _youtubeDownloadService;
 
     public DownloadService(
@@ -28,13 +28,8 @@ public class DownloadService
 
     public bool IsNeedDownloadAny => _items.Any(item => item.IsNeedDownloadAnyStream);
 
-    public Operation<DownloadItem, string> FindItem(Guid id)
+    public Operation<DownloadItem, string> FindItem(string id)
     {
-        if (id == Guid.Empty)
-        {
-            return Operation.Error<string>("Id не может быть пустым");
-        }
-
         DownloadItem? item = _items.FirstOrDefault(downloadItem => downloadItem.Id == id);
 
         return item is not null
@@ -46,8 +41,15 @@ public class DownloadService
     {
         _logger.LogDebug("Попытка добавить в очередь: {Url}", url);
 
+        DownloadItem? downloadItem = _items.FirstOrDefault(downloadItem => downloadItem.Url == url);
+
+        if (downloadItem is not null)
+        {
+            _logger.LogDebug("Уже существует в очереди {Id}: {Url}", downloadItem.Id, url);
+            return downloadItem;
+        }
+
         Video video = await _youtubeDownloadService.GetVideoAsync(url);
-        Guid id = Guid.NewGuid();
 
         StreamManifest streamManifest = await _youtubeDownloadService.GetStreamManifestAsync(url);
 
@@ -89,14 +91,14 @@ public class DownloadService
             streamId++;
         }
 
-        DownloadItem item = DownloadItem.Create(id, url, streams, video).Result;
+        DownloadItem item = DownloadItem.Create(url, streams, video).Result;
 
         _items.Add(item);
-        _logger.LogDebug("Добавлено в очередь {Id}: {Url}", id, url);
+        _logger.LogDebug("Добавлено в очередь {Id}: {Url}", item.Id, url);
         return item;
     }
 
-    public void SetStreamToDownload(Guid downloadId, int streamId)
+    public void SetStreamToDownload(string downloadId, int streamId)
     {
         _logger.LogDebug("Попытка установить поток для скачивания: {Id} {StreamId}", downloadId, streamId);
 

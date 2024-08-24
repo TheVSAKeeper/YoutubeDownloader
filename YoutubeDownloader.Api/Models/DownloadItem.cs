@@ -4,7 +4,7 @@ public class DownloadItem
 {
     private readonly List<DownloadItemStream> _streams;
 
-    private DownloadItem(Guid id, string url, IEnumerable<DownloadItemStream> streams, Video video)
+    private DownloadItem(string id, string url, IEnumerable<DownloadItemStream> streams, Video video)
     {
         Id = id;
         Url = url;
@@ -12,7 +12,7 @@ public class DownloadItem
         Video = video;
     }
 
-    public Guid Id { get; }
+    public string Id { get; }
     public string Url { get; }
 
     public IEnumerable<DownloadItemStream> Streams => _streams;
@@ -21,7 +21,7 @@ public class DownloadItem
 
     public bool IsNeedDownloadAnyStream => Streams.Any(stream => stream.IsNeedDownload);
 
-    public static Operation<DownloadItem, string> Create(Guid id, string url, IEnumerable<DownloadItemStream> streams, Video video)
+    public static Operation<DownloadItem, string> Create(string url, IEnumerable<DownloadItemStream> streams, Video video)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -35,7 +35,7 @@ public class DownloadItem
             return Operation.Error<string>("Список потоков не может быть пустым.");
         }
 
-        return new DownloadItem(id, url, streamsList, video);
+        return new DownloadItem(video.Id.Value, url, streamsList, video);
     }
 
     public Operation<DownloadItemStream, string> GetStream(int id)
@@ -47,6 +47,8 @@ public class DownloadItem
             : Operation.Error<string>($"DownloadItemStream c id {id} не найден");
     }
 
-    public IEnumerable<DownloadItemStream> GetWaitStreams() =>
-        Streams.Where(stream => stream.State == DownloadItemState.Wait);
+    public IEnumerable<DownloadItemStream> GetWaitStreams()
+    {
+        return Streams.Where(stream => stream.State == DownloadItemState.Wait);
+    }
 }
