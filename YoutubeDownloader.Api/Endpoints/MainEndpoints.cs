@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using YoutubeDownloader.Api.Application.Extensions;
 using YoutubeDownloader.Api.Models.Requests;
 using YoutubeDownloader.Api.Services;
 
@@ -100,7 +101,7 @@ internal static class MainEndpointsEndpointsExtensions
         if (itemOperation.Ok == false)
         {
             logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", request.Id, itemOperation.Error);
-            return TypedResults.BadRequest(itemOperation.Error);
+            return itemOperation.ToResponse();
         }
 
         DownloadItem item = itemOperation.Result;
@@ -110,7 +111,7 @@ internal static class MainEndpointsEndpointsExtensions
         if (streamOperation.Ok == false)
         {
             logger.LogError("Не удалось получить поток: {StreamId} для элемента: {Id}, Ошибка: {Error}", request.StreamId, request.Id, streamOperation.Error);
-            return TypedResults.BadRequest(streamOperation.Error);
+            return streamOperation.ToResponse();
         }
 
         DownloadItemStream stream = streamOperation.Result;
@@ -136,7 +137,7 @@ internal static class MainEndpointsEndpointsExtensions
         if (itemOperation.Ok == false)
         {
             logger.LogError("Не удалось найти элемент загрузки: {Id}, Ошибка: {Error}", id, itemOperation.Error);
-            return TypedResults.BadRequest(itemOperation.Error);
+            return itemOperation.ToResponse();
         }
 
         DownloadItem item = itemOperation.Result;

@@ -28,10 +28,10 @@ public class SwaggerDefinition : AppDefinition
 
     public override void ConfigureApplication(WebApplication app)
     {
-        if (app.Environment.IsDevelopment() == false)
+        /*if (app.Environment.IsDevelopment() == false)
         {
             return;
-        }
+        }*/
 
         app.UseSwagger();
 
