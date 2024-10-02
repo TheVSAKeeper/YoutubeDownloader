@@ -9,9 +9,9 @@ namespace YoutubeDownloader.Logic
     public class DownloadManager
     {
         public List<DownloadItem> Items { get; set; }
-        private ILogger<TelegramBotService> _logger;
+        private ILogger<DownloadManager> _logger;
 
-        public DownloadManager(ILogger<TelegramBotService> logger)
+        public DownloadManager(ILogger<DownloadManager> logger)
         {
             Items = new List<DownloadItem>();
             _logger = logger;

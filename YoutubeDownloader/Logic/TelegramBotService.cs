@@ -1,5 +1,4 @@
-﻿using Microsoft.VisualBasic;
-using Telegram.Bot;
+﻿using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -47,7 +46,14 @@ namespace YoutubeDownloader.Logic
         public async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation($"бот остановлен!");
-            await _botClient.CloseAsync();
+            try
+            {
+                await _botClient.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ошибка остановки бота: " + ex.Message);
+            }
         }
 
         private async Task UpdateHandler(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -101,7 +107,7 @@ namespace YoutubeDownloader.Logic
 
                 var item = _downloadManager.Items.First(x => x.Id == downloadId);
                 var stream = item.Streams.First(x => x.Id == streamId);
-                if(stream.SizeMB > 50)
+                if (stream.SizeMB > 50)
                 {
                     await botClient.SendTextMessageAsync(chat.Id, $"Я не умею скачивать видео больше 50МБ,\r\nвоспользуйтесь http://downloads.bob217.ru?video={item.Url}");
                     return;
@@ -172,11 +178,12 @@ namespace YoutubeDownloader.Logic
             }
         }
 
+        private object lockObj = new object();
         private async Task MessageProcess(ITelegramBotClient botClient, Update update)
         {
             var message = update.Message;
             var user = message.From;
-            Console.WriteLine($"{user.FirstName} ({user.Id}) написал сообщение: {message.Text}");
+            _logger.LogInformation($"{user.FirstName} ({user.Id}) написал сообщение: {message.Text}");
             var chat = message.Chat;
 
             switch (message.Type)
@@ -191,6 +198,39 @@ namespace YoutubeDownloader.Logic
                                 await botClient.SendTextMessageAsync(
                                     chat.Id,
                                     "Здравствуйте,\r\nприсылайте ссылки на ютуб видосы и я помогу вам их скачать,\r\nесли они не более 50МБ (\\/)._.(\\/)");
+                            }
+                            else if (message.Text?.ToLower() == "розыгрыш")
+                            {
+                                var user1 = user.Id + " " + user.Username;
+                                var ifExists = false;
+                                lock (lockObj)
+                                {
+                                    var users = System.IO.File.ReadAllLines("E:\\publish\\bob217downloads\\production\\priz\\users.txt");
+                                    var key = user.Id.ToString();
+                                    if (users.Any(x => x.StartsWith(key)))
+                                    {
+                                        ifExists = true;
+                                    }
+                                    else
+                                    {
+                                        var user2 = users.ToList();
+                                        user2.Add(user1);
+                                        System.IO.File.WriteAllLines("E:\\publish\\bob217downloads\\production\\priz\\users.txt", user2);
+                                    }
+                                }
+
+                                if (ifExists)
+                                {
+                                    await botClient.SendTextMessageAsync(
+                                        chat.Id,
+                                        "Вы уже в списке участников");
+                                }
+                                else
+                                {
+                                    await botClient.SendTextMessageAsync(
+                                        chat.Id,
+                                        "Ваша заявка для розыгрыша принята");
+                                }
                             }
                             else
                             {
