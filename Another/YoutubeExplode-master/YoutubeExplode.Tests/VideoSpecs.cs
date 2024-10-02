@@ -9,12 +9,8 @@ using YoutubeExplode.Tests.TestData;
 
 namespace YoutubeExplode.Tests;
 
-public class VideoSpecs
+public class VideoSpecs(ITestOutputHelper testOutput)
 {
-    private readonly ITestOutputHelper _testOutput;
-
-    public VideoSpecs(ITestOutputHelper testOutput) => _testOutput = testOutput;
-
     [Fact]
     public async Task I_can_get_the_metadata_of_a_video()
     {
@@ -35,8 +31,8 @@ public class VideoSpecs
         video.Description.Should().Contain("More about PSY@");
         video.Duration.Should().BeCloseTo(TimeSpan.FromSeconds(252), TimeSpan.FromSeconds(1));
         video.Thumbnails.Should().NotBeEmpty();
-        video.Keywords
-            .Should()
+        video
+            .Keywords.Should()
             .BeEquivalentTo(
                 "PSY",
                 "싸이",
@@ -60,7 +56,7 @@ public class VideoSpecs
     }
 
     [Fact]
-    public async Task I_cannot_get_the_metadata_of_a_private_video()
+    public async Task I_can_try_to_get_the_metadata_of_a_video_and_get_an_error_if_it_is_private()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -70,11 +66,11 @@ public class VideoSpecs
             async () => await youtube.Videos.GetAsync(VideoIds.Private)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
     [Fact]
-    public async Task I_cannot_get_the_metadata_of_a_non_existing_video()
+    public async Task I_can_try_to_get_the_metadata_of_a_video_and_get_an_error_if_it_does_not_exist()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -84,16 +80,16 @@ public class VideoSpecs
             async () => await youtube.Videos.GetAsync(VideoIds.Deleted)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
     [Theory]
     [InlineData(VideoIds.Normal)]
     [InlineData(VideoIds.Unlisted)]
+    [InlineData(VideoIds.RequiresPurchaseDistributed)]
     [InlineData(VideoIds.EmbedRestrictedByYouTube)]
     [InlineData(VideoIds.EmbedRestrictedByAuthor)]
-    [InlineData(VideoIds.AgeRestrictedViolent)]
-    [InlineData(VideoIds.AgeRestrictedEmbedRestricted)]
+    [InlineData(VideoIds.ContentCheckViolent)]
     [InlineData(VideoIds.WithBrokenTitle)]
     public async Task I_can_get_the_metadata_of_any_available_video(string videoId)
     {

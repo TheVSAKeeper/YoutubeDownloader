@@ -12,14 +12,10 @@ using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeExplode.Tests;
 
-public class StreamSpecs
+public class StreamSpecs(ITestOutputHelper testOutput)
 {
-    private readonly ITestOutputHelper _testOutput;
-
-    public StreamSpecs(ITestOutputHelper testOutput) => _testOutput = testOutput;
-
     [Fact]
-    public async Task I_can_get_the_list_of_available_streams_on_a_video()
+    public async Task I_can_get_the_list_of_available_streams_of_a_video()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -31,28 +27,23 @@ public class StreamSpecs
 
         // Assert
         manifest.Streams.Should().NotBeEmpty();
-        manifest.GetMuxedStreams().Should().NotBeEmpty();
-        manifest.GetAudioStreams().Should().NotBeEmpty();
-        manifest.GetVideoStreams().Should().NotBeEmpty();
 
         manifest
             .GetVideoStreams()
             .Should()
-            .Contain(
-                s =>
-                    s.VideoQuality.MaxHeight == 2160
-                    && s.VideoQuality.Framerate == 60
-                    && s.VideoQuality.IsHighDefinition
+            .Contain(s =>
+                s.VideoQuality.MaxHeight == 2160
+                && s.VideoQuality.Framerate == 60
+                && s.VideoQuality.IsHighDefinition
             );
 
         manifest
             .GetVideoStreams()
             .Should()
-            .Contain(
-                s =>
-                    s.VideoQuality.MaxHeight == 1080
-                    && s.VideoQuality.Framerate == 60
-                    && s.VideoQuality.IsHighDefinition
+            .Contain(s =>
+                s.VideoQuality.MaxHeight == 1080
+                && s.VideoQuality.Framerate == 60
+                && s.VideoQuality.IsHighDefinition
             );
 
         manifest
@@ -71,13 +62,13 @@ public class StreamSpecs
     [InlineData(VideoIds.Unlisted)]
     [InlineData(VideoIds.EmbedRestrictedByYouTube)]
     [InlineData(VideoIds.EmbedRestrictedByAuthor)]
-    [InlineData(VideoIds.AgeRestrictedViolent)]
-    [InlineData(VideoIds.AgeRestrictedSexual)]
-    [InlineData(VideoIds.AgeRestrictedEmbedRestricted)]
+    [InlineData(VideoIds.ContentCheckViolent, Skip = "Needs n-signature deciphering to support")]
+    [InlineData(VideoIds.ContentCheckSexual, Skip = "Needs n-signature deciphering to support")]
+    [InlineData(VideoIds.ContentCheckSuicide)]
     [InlineData(VideoIds.LiveStreamRecording)]
     [InlineData(VideoIds.WithOmnidirectionalStreams)]
     [InlineData(VideoIds.WithHighDynamicRangeStreams)]
-    public async Task I_can_get_the_list_of_available_streams_on_any_playable_video(string videoId)
+    public async Task I_can_get_the_list_of_available_streams_of_any_playable_video(string videoId)
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -90,7 +81,7 @@ public class StreamSpecs
     }
 
     [Fact(Skip = "Preview video ID is not always available")]
-    public async Task I_cannot_get_the_list_of_available_streams_on_a_paid_video()
+    public async Task I_can_try_to_get_the_list_of_available_streams_of_a_video_and_get_an_error_if_it_is_paid()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -102,11 +93,11 @@ public class StreamSpecs
 
         ex.PreviewVideoId.Value.Should().NotBeNullOrWhiteSpace();
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
     [Fact]
-    public async Task I_cannot_get_the_list_of_available_streams_on_a_private_video()
+    public async Task I_can_try_to_get_the_list_of_available_streams_of_a_video_and_get_an_error_if_it_is_private()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -116,11 +107,11 @@ public class StreamSpecs
             async () => await youtube.Videos.Streams.GetManifestAsync(VideoIds.Private)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
     [Fact]
-    public async Task I_cannot_get_the_list_of_available_streams_on_a_non_existing_video()
+    public async Task I_can_try_to_get_the_list_of_available_streams_of_a_video_and_get_an_error_if_it_does_not_exist()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -130,16 +121,16 @@ public class StreamSpecs
             async () => await youtube.Videos.Streams.GetManifestAsync(VideoIds.Deleted)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
     [Theory]
     [InlineData(VideoIds.Normal)]
-    [InlineData(VideoIds.AgeRestrictedViolent)]
-    [InlineData(VideoIds.AgeRestrictedSexual)]
+    [InlineData(VideoIds.ContentCheckViolent, Skip = "Needs n-signature deciphering to support")]
+    [InlineData(VideoIds.ContentCheckSexual, Skip = "Needs n-signature deciphering to support")]
     [InlineData(VideoIds.LiveStreamRecording)]
     [InlineData(VideoIds.WithOmnidirectionalStreams)]
-    public async Task I_can_get_a_specific_stream_from_a_video(string videoId)
+    public async Task I_can_get_a_specific_stream_of_a_video(string videoId)
     {
         // Arrange
         using var buffer = MemoryPool<byte>.Shared.Rent(1024);
@@ -163,12 +154,12 @@ public class StreamSpecs
     [InlineData(VideoIds.Unlisted)]
     [InlineData(VideoIds.EmbedRestrictedByYouTube)]
     [InlineData(VideoIds.EmbedRestrictedByAuthor)]
-    [InlineData(VideoIds.AgeRestrictedViolent)]
-    [InlineData(VideoIds.AgeRestrictedSexual)]
-    [InlineData(VideoIds.AgeRestrictedEmbedRestricted)]
+    [InlineData(VideoIds.ContentCheckViolent, Skip = "Needs n-signature deciphering to support")]
+    [InlineData(VideoIds.ContentCheckSexual, Skip = "Needs n-signature deciphering to support")]
+    [InlineData(VideoIds.ContentCheckSuicide)]
     [InlineData(VideoIds.LiveStreamRecording)]
     [InlineData(VideoIds.WithOmnidirectionalStreams)]
-    public async Task I_can_download_a_specific_stream_from_a_video(string videoId)
+    public async Task I_can_download_a_specific_stream_of_a_video(string videoId)
     {
         // Arrange
         using var file = TempFile.Create();
@@ -187,7 +178,7 @@ public class StreamSpecs
     }
 
     [Fact]
-    public async Task I_can_download_the_highest_bitrate_stream_from_a_video()
+    public async Task I_can_download_the_highest_bitrate_stream_of_a_video()
     {
         // Arrange
         using var file = TempFile.Create();
@@ -206,7 +197,7 @@ public class StreamSpecs
     }
 
     [Fact]
-    public async Task I_can_download_the_highest_quality_stream_from_a_video()
+    public async Task I_can_download_the_highest_quality_stream_of_a_video()
     {
         // Arrange
         using var file = TempFile.Create();
@@ -225,7 +216,7 @@ public class StreamSpecs
     }
 
     [Fact]
-    public async Task I_can_seek_to_a_specific_position_on_a_stream_from_a_video()
+    public async Task I_can_seek_to_a_specific_position_of_a_stream_from_a_video()
     {
         // Arrange
         using var buffer = new MemoryStream();
@@ -244,7 +235,7 @@ public class StreamSpecs
     }
 
     [Fact]
-    public async Task I_can_get_the_HTTP_live_stream_URL_from_a_video()
+    public async Task I_can_get_the_HTTP_live_stream_URL_for_a_video()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -257,7 +248,7 @@ public class StreamSpecs
     }
 
     [Fact]
-    public async Task I_cannot_get_the_HTTP_live_stream_URL_from_an_unplayable_video()
+    public async Task I_can_try_to_get_the_HTTP_live_stream_URL_for_a_video_and_get_an_error_if_it_is_unplayable()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -268,11 +259,11 @@ public class StreamSpecs
                 await youtube.Videos.Streams.GetHttpLiveStreamUrlAsync(VideoIds.RequiresPurchase)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 
-    [Fact]
-    public async Task I_cannot_get_the_HTTP_live_stream_URL_from_a_non_live_video()
+    [Fact(Skip = "The iOS client returns HLS URLs even for non-live videos")]
+    public async Task I_can_try_to_get_the_HTTP_live_stream_URL_for_a_video_and_get_an_error_if_it_is_not_live()
     {
         // Arrange
         var youtube = new YoutubeClient();
@@ -282,6 +273,6 @@ public class StreamSpecs
             async () => await youtube.Videos.Streams.GetHttpLiveStreamUrlAsync(VideoIds.Normal)
         );
 
-        _testOutput.WriteLine(ex.Message);
+        testOutput.WriteLine(ex.ToString());
     }
 }

@@ -9,14 +9,12 @@ namespace YoutubeExplode.Channels;
 /// <summary>
 /// Represents a syntactically valid YouTube channel handle.
 /// </summary>
-public readonly partial struct ChannelHandle
+public readonly partial struct ChannelHandle(string value)
 {
     /// <summary>
     /// Raw handle value.
     /// </summary>
-    public string Value { get; }
-
-    private ChannelHandle(string value) => Value = value;
+    public string Value { get; } = value;
 
     /// <inheritdoc />
     public override string ToString() => Value;
@@ -32,19 +30,20 @@ public readonly partial struct ChannelHandle
         if (string.IsNullOrWhiteSpace(channelHandleOrUrl))
             return null;
 
-        // Handle
+        // Check if already passed a handle
         // Tyrrrz
         if (IsValid(channelHandleOrUrl))
             return channelHandleOrUrl;
 
-        // URL
+        // Try to extract the handle from the URL
         // https://www.youtube.com/@Tyrrrz
-        var regularMatch = Regex
+        var handle = Regex
             .Match(channelHandleOrUrl, @"youtube\..+?/@(.*?)(?:\?|&|/|$)")
-            .Groups[1].Value.Pipe(WebUtility.UrlDecode);
+            .Groups[1]
+            .Value.Pipe(WebUtility.UrlDecode);
 
-        if (!string.IsNullOrWhiteSpace(regularMatch) && IsValid(regularMatch))
-            return regularMatch;
+        if (!string.IsNullOrWhiteSpace(handle) && IsValid(handle))
+            return handle;
 
         // Invalid input
         return null;

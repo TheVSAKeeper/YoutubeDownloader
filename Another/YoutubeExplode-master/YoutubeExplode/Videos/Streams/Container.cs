@@ -5,13 +5,13 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Stream container.
 /// </summary>
-public readonly partial struct Container
+public readonly partial struct Container(string name)
 {
     /// <summary>
     /// Container name (e.g. mp4, webm, etc).
     /// Can be used as file extension.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <summary>
     /// Whether this container is a known audio-only container.
@@ -30,11 +30,6 @@ public readonly partial struct Container
         || string.Equals(Name, "aac", StringComparison.OrdinalIgnoreCase)
         || string.Equals(Name, "opus", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Initializes an instance of <see cref="Container" />.
-    /// </summary>
-    public Container(string name) => Name = name;
-
     /// <inheritdoc />
     public override string ToString() => Name;
 }
@@ -44,6 +39,9 @@ public partial struct Container
     /// <summary>
     /// MPEG-2 Audio Layer III (mp3).
     /// </summary>
+    /// <remarks>
+    /// YouTube does not natively provide streams in this container.
+    /// </remarks>
     public static Container Mp3 { get; } = new("mp3");
 
     /// <summary>

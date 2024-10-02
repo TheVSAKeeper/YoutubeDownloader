@@ -7,45 +7,42 @@ namespace YoutubeExplode.Playlists;
 /// <summary>
 /// Metadata associated with a YouTube playlist.
 /// </summary>
-public class Playlist : IPlaylist
+public class Playlist(
+    PlaylistId id,
+    string title,
+    Author? author,
+    string description,
+    int? count,
+    IReadOnlyList<Thumbnail> thumbnails
+) : IPlaylist
 {
     /// <inheritdoc />
-    public PlaylistId Id { get; }
+    public PlaylistId Id { get; } = id;
 
     /// <inheritdoc />
     public string Url => $"https://www.youtube.com/playlist?list={Id}";
 
     /// <inheritdoc />
-    public string Title { get; }
+    public string Title { get; } = title;
 
     /// <inheritdoc />
-    public Author? Author { get; }
+    public Author? Author { get; } = author;
 
     /// <summary>
     /// Playlist description.
     /// </summary>
-    public string Description { get; }
-
-    /// <inheritdoc />
-    public IReadOnlyList<Thumbnail> Thumbnails { get; }
+    public string Description { get; } = description;
 
     /// <summary>
-    /// Initializes an instance of <see cref="Playlist" />.
+    /// Total count of videos included in the playlist.
     /// </summary>
-    public Playlist(
-        PlaylistId id,
-        string title,
-        Author? author,
-        string description,
-        IReadOnlyList<Thumbnail> thumbnails
-    )
-    {
-        Id = id;
-        Title = title;
-        Author = author;
-        Description = description;
-        Thumbnails = thumbnails;
-    }
+    /// <remarks>
+    /// May be null in case of infinite playlists (e.g. auto-generated mixes).
+    /// </remarks>
+    public int? Count { get; } = count;
+
+    /// <inheritdoc />
+    public IReadOnlyList<Thumbnail> Thumbnails { get; } = thumbnails;
 
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]

@@ -8,44 +8,34 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Video stream quality.
 /// </summary>
-public readonly partial struct VideoQuality
+public readonly partial struct VideoQuality(string label, int maxHeight, int framerate)
 {
-    /// <summary>
-    /// Quality label, as seen on YouTube (e.g. 1080p, 720p60, etc).
-    /// </summary>
-    public string Label { get; }
-
-    /// <summary>
-    /// Maximum video height allowed by this quality (e.g. 1080 for 1080p60).
-    /// Actual video height may be lower in some cases.
-    /// </summary>
-    public int MaxHeight { get; }
-
-    /// <summary>
-    /// Video framerate, measured in frames per second.
-    /// </summary>
-    public int Framerate { get; }
-
-    /// <summary>
-    /// Whether this is a high definition video (i.e. 1080p or above).
-    /// </summary>
-    public bool IsHighDefinition => MaxHeight >= 1080;
-
-    /// <summary>
-    /// Initializes an instance of <see cref="VideoQuality" />.
-    /// </summary>
-    public VideoQuality(string label, int maxHeight, int framerate)
-    {
-        Label = label;
-        MaxHeight = maxHeight;
-        Framerate = framerate;
-    }
-
     /// <summary>
     /// Initializes an instance of <see cref="VideoQuality" />.
     /// </summary>
     public VideoQuality(int maxHeight, int framerate)
         : this(FormatLabel(maxHeight, framerate), maxHeight, framerate) { }
+
+    /// <summary>
+    /// Quality label, as seen on YouTube (e.g. 1080p, 720p60, etc).
+    /// </summary>
+    public string Label { get; } = label;
+
+    /// <summary>
+    /// Maximum video height allowed by this quality (e.g. 1080 for 1080p60).
+    /// Actual video height may be lower in some cases.
+    /// </summary>
+    public int MaxHeight { get; } = maxHeight;
+
+    /// <summary>
+    /// Video framerate, measured in frames per second.
+    /// </summary>
+    public int Framerate { get; } = framerate;
+
+    /// <summary>
+    /// Whether this is a high definition video (i.e. 1080p or above).
+    /// </summary>
+    public bool IsHighDefinition => MaxHeight >= 1080;
 
     internal Resolution GetDefaultVideoResolution() =>
         MaxHeight switch
@@ -61,7 +51,7 @@ public readonly partial struct VideoQuality
             2880 => new Resolution(5120, 2880),
             3072 => new Resolution(4096, 3072),
             4320 => new Resolution(7680, 4320),
-            _ => new Resolution(16 * MaxHeight / 9, MaxHeight)
+            _ => new Resolution(16 * MaxHeight / 9, MaxHeight),
         };
 
     /// <inheritdoc />
@@ -198,7 +188,7 @@ public partial struct VideoQuality
             396 => 360,
             395 => 240,
             394 => 144,
-            _ => throw new ArgumentException($"Unrecognized itag '{itag}'.", nameof(itag))
+            _ => throw new ArgumentException($"Unrecognized itag '{itag}'.", nameof(itag)),
         };
 
         return new VideoQuality(maxHeight, framerate);

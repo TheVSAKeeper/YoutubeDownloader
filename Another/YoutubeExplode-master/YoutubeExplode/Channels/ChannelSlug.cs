@@ -9,14 +9,12 @@ namespace YoutubeExplode.Channels;
 /// <summary>
 /// Represents a syntactically valid YouTube channel slug.
 /// </summary>
-public readonly partial struct ChannelSlug
+public readonly partial struct ChannelSlug(string value)
 {
     /// <summary>
     /// Raw slug value.
     /// </summary>
-    public string Value { get; }
-
-    private ChannelSlug(string value) => Value = value;
+    public string Value { get; } = value;
 
     /// <inheritdoc />
     public override string ToString() => Value;
@@ -31,19 +29,20 @@ public readonly partial struct ChannelSlug
         if (string.IsNullOrWhiteSpace(channelSlugOrUrl))
             return null;
 
-        // Slug
+        // Check if already passed a slug
         // Tyrrrz
         if (IsValid(channelSlugOrUrl))
             return channelSlugOrUrl;
 
-        // URL
+        // Try to extract the slug from the URL
         // https://www.youtube.com/c/Tyrrrz
-        var regularMatch = Regex
+        var slug = Regex
             .Match(channelSlugOrUrl, @"youtube\..+?/c/(.*?)(?:\?|&|/|$)")
-            .Groups[1].Value.Pipe(WebUtility.UrlDecode);
+            .Groups[1]
+            .Value.Pipe(WebUtility.UrlDecode);
 
-        if (!string.IsNullOrWhiteSpace(regularMatch) && IsValid(regularMatch))
-            return regularMatch;
+        if (!string.IsNullOrWhiteSpace(slug) && IsValid(slug))
+            return slug;
 
         // Invalid input
         return null;

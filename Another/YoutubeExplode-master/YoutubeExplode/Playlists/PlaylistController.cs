@@ -3,16 +3,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using YoutubeExplode.Bridge;
 using YoutubeExplode.Exceptions;
+using YoutubeExplode.Utils;
 using YoutubeExplode.Videos;
 
 namespace YoutubeExplode.Playlists;
 
-internal class PlaylistController
+internal class PlaylistController(HttpClient http)
 {
-    private readonly HttpClient _http;
-
-    public PlaylistController(HttpClient http) => _http = http;
-
     // Works only with user-made playlists
     public async ValueTask<PlaylistBrowseResponse> GetPlaylistBrowseResponseAsync(
         PlaylistId playlistId,
@@ -22,28 +19,27 @@ internal class PlaylistController
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             "https://www.youtube.com/youtubei/v1/browse"
-        )
-        {
-            Content = new StringContent(
-                // lang=json
-                $$"""
-                {
-                    "browseId": "VL{{playlistId}}",
-                    "context": {
-                        "client": {
-                            "clientName": "WEB",
-                            "clientVersion": "2.20210408.08.00",
-                            "hl": "en",
-                            "gl": "US",
-                            "utcOffsetMinutes": 0
-                        }
-                    }
-                }
-                """
-            )
-        };
+        );
 
-        using var response = await _http.SendAsync(request, cancellationToken);
+        request.Content = new StringContent(
+            // lang=json
+            $$"""
+            {
+              "browseId": {{Json.Serialize("VL" + playlistId)}},
+              "context": {
+                "client": {
+                  "clientName": "WEB",
+                  "clientVersion": "2.20210408.08.00",
+                  "hl": "en",
+                  "gl": "US",
+                  "utcOffsetMinutes": 0
+                }
+              }
+            }
+            """
+        );
+
+        using var response = await http.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var playlistResponse = PlaylistBrowseResponse.Parse(
@@ -70,31 +66,30 @@ internal class PlaylistController
             using var request = new HttpRequestMessage(
                 HttpMethod.Post,
                 "https://www.youtube.com/youtubei/v1/next"
-            )
-            {
-                Content = new StringContent(
-                    // lang=json
-                    $$"""
-                    {
-                        "playlistId": "{{playlistId}}",
-                        "videoId": "{{videoId}}",
-                        "playlistIndex": {{index}},
-                        "context": {
-                            "client": {
-                                "clientName": "WEB",
-                                "clientVersion": "2.20210408.08.00",
-                                "hl": "en",
-                                "gl": "US",
-                                "utcOffsetMinutes": 0,
-                                "visitorData": "{{visitorData}}"
-                            }
-                        }
-                    }
-                    """
-                )
-            };
+            );
 
-            using var response = await _http.SendAsync(request, cancellationToken);
+            request.Content = new StringContent(
+                // lang=json
+                $$"""
+                {
+                  "playlistId": {{Json.Serialize(playlistId)}},
+                  "videoId": {{Json.Serialize(videoId)}},
+                  "playlistIndex": {{Json.Serialize(index)}},
+                  "context": {
+                    "client": {
+                      "clientName": "WEB",
+                      "clientVersion": "2.20210408.08.00",
+                      "hl": "en",
+                      "gl": "US",
+                      "utcOffsetMinutes": 0,
+                      "visitorData": {{Json.Serialize(visitorData)}}
+                    }
+                  }
+                }
+                """
+            );
+
+            using var response = await http.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var playlistResponse = PlaylistNextResponse.Parse(

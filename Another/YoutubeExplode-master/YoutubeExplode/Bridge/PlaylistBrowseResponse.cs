@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -8,13 +7,11 @@ using YoutubeExplode.Utils.Extensions;
 
 namespace YoutubeExplode.Bridge;
 
-internal partial class PlaylistBrowseResponse : IPlaylistData
+internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistData
 {
-    private readonly JsonElement _content;
-
     [Lazy]
     private JsonElement? Sidebar =>
-        _content
+        content
             .GetPropertyOrNull("sidebar")
             ?.GetPropertyOrNull("playlistSidebarRenderer")
             ?.GetPropertyOrNull("items");
@@ -48,7 +45,14 @@ internal partial class PlaylistBrowseResponse : IPlaylistData
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .ConcatToString();
+            .ConcatToString()
+        ?? SidebarPrimary
+            ?.GetPropertyOrNull("titleForm")
+            ?.GetPropertyOrNull("inlineFormRenderer")
+            ?.GetPropertyOrNull("formField")
+            ?.GetPropertyOrNull("textInputFormFieldRenderer")
+            ?.GetPropertyOrNull("value")
+            ?.GetStringOrNull();
 
     [Lazy]
     private JsonElement? AuthorDetails =>
@@ -88,7 +92,36 @@ internal partial class PlaylistBrowseResponse : IPlaylistData
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .ConcatToString();
+            .ConcatToString()
+        ?? SidebarPrimary
+            ?.GetPropertyOrNull("descriptionForm")
+            ?.GetPropertyOrNull("inlineFormRenderer")
+            ?.GetPropertyOrNull("formField")
+            ?.GetPropertyOrNull("textInputFormFieldRenderer")
+            ?.GetPropertyOrNull("value")
+            ?.GetStringOrNull();
+
+    [Lazy]
+    public int? Count =>
+        SidebarPrimary
+            ?.GetPropertyOrNull("stats")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull()
+        ?? SidebarPrimary
+            ?.GetPropertyOrNull("stats")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("simpleText")
+            ?.GetStringOrNull()
+            ?.Split(' ')
+            ?.FirstOrDefault()
+            ?.ParseIntOrNull();
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>
@@ -108,9 +141,7 @@ internal partial class PlaylistBrowseResponse : IPlaylistData
             ?.EnumerateArrayOrNull()
             ?.Select(j => new ThumbnailData(j))
             .ToArray()
-        ?? Array.Empty<ThumbnailData>();
-
-    public PlaylistBrowseResponse(JsonElement content) => _content = content;
+        ?? [];
 }
 
 internal partial class PlaylistBrowseResponse

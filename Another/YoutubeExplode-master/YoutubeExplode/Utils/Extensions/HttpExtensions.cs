@@ -8,16 +8,12 @@ namespace YoutubeExplode.Utils.Extensions;
 
 internal static class HttpExtensions
 {
-    private class NonDisposableHttpContent : HttpContent
+    private class NonDisposableHttpContent(HttpContent content) : HttpContent
     {
-        private readonly HttpContent _content;
-
-        public NonDisposableHttpContent(HttpContent content) => _content = content;
-
         protected override async Task SerializeToStreamAsync(
             Stream stream,
             TransportContext? context
-        ) => await _content.CopyToAsync(stream);
+        ) => await content.CopyToAsync(stream);
 
         protected override bool TryComputeLength(out long length)
         {
@@ -34,7 +30,7 @@ internal static class HttpExtensions
             // Don't dispose the original request's content
             Content = request.Content is not null
                 ? new NonDisposableHttpContent(request.Content)
-                : null
+                : null,
         };
 
         foreach (var (key, value) in request.Headers)
@@ -56,25 +52,11 @@ internal static class HttpExtensions
     )
     {
         using var request = new HttpRequestMessage(HttpMethod.Head, requestUri);
+
         return await http.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken
         );
-    }
-
-    public static async ValueTask<long?> TryGetContentLengthAsync(
-        this HttpClient http,
-        string requestUri,
-        bool ensureSuccess = true,
-        CancellationToken cancellationToken = default
-    )
-    {
-        using var response = await http.HeadAsync(requestUri, cancellationToken);
-
-        if (ensureSuccess)
-            response.EnsureSuccessStatusCode();
-
-        return response.Content.Headers.ContentLength;
     }
 }

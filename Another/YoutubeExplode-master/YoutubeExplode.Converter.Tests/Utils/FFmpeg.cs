@@ -16,10 +16,9 @@ public static class FFmpeg
 {
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
-    public static Version Version { get; } = new(4, 4, 1);
+    public static Version Version { get; } = new(7, 0);
 
-    private static string FileName { get; } =
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ffmpeg.exe" : "ffmpeg";
+    private static string FileName { get; } = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
 
     public static string FilePath { get; } =
         Path.Combine(
@@ -32,13 +31,13 @@ public static class FFmpeg
     {
         static string GetPlatformMoniker()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                return "win";
+            if (OperatingSystem.IsWindows())
+                return "windows";
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (OperatingSystem.IsLinux())
                 return "linux";
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (OperatingSystem.IsMacOS())
                 return "osx";
 
             throw new NotSupportedException("Unsupported OS platform.");
@@ -47,16 +46,13 @@ public static class FFmpeg
         static string GetArchitectureMoniker()
         {
             if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
-                return "64";
+                return "x64";
 
             if (RuntimeInformation.ProcessArchitecture == Architecture.X86)
-                return "32";
+                return "x86";
 
             if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-                return "arm-64";
-
-            if (RuntimeInformation.ProcessArchitecture == Architecture.Arm)
-                return "arm";
+                return "arm64";
 
             throw new NotSupportedException("Unsupported architecture.");
         }
@@ -64,35 +60,38 @@ public static class FFmpeg
         var plat = GetPlatformMoniker();
         var arch = GetArchitectureMoniker();
 
-        return $"https://github.com/vot/ffbinaries-prebuilt/releases/download/v{Version}/ffmpeg-{Version}-{plat}-{arch}.zip";
+        return $"https://github.com/Tyrrrz/FFmpegBin/releases/download/{Version}/ffmpeg-{plat}-{arch}.zip";
     }
 
     private static byte[] GetDownloadHash()
     {
         static string GetHashString()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // Only x64 build is available
-                return "d1124593b7453fc54dd90ca3819dc82c22ffa957937f33dd650082f1a495b10e";
-            }
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (OperatingSystem.IsWindows())
             {
                 if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
-                    return "4348301b0d5e18174925e2022da1823aebbdb07282bbe9adb64b2485e1ef2df7";
+                    return "96f2d2fae3a298adadf8aaa19c8b79c04ba18afef61f8b8d157032ccd5170992";
 
                 if (RuntimeInformation.ProcessArchitecture == Architecture.X86)
-                    return "a292731806fe3733b9e2281edba881d1035e4018599577174a54e275c0afc931";
+                    return "81b49b5d9cd3ff9ace26f29b0b3cf7cd6358769f27ad32f8079b14a9db0a1e7a";
 
                 if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-                    return "7d57e730cc34208743cc1a97134541656ecd2c3adcdfad450dedb61d465857da";
+                    return "58efff14efe66ae666f9d9145ee035e360e80cc0d61b0ebc4162e3528e7aa933";
             }
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            if (OperatingSystem.IsLinux())
             {
-                // Only x64 build is available
-                return "e08c670fcbdc2e627aa4c0d0c5ee1ef20e82378af2f14e4e7ae421a148bd49af";
+                if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
+                    return "d1e03fb8dbe439b5f626706140973d48e5704bf0b30d529828a0fcb8cf5abed8";
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
+                    return "af9ef6994ef259ae3ae6dc215170c80db5d4390ea7cfe53cc30a544dd8f68a9b";
+
+                if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+                    return "d799c74e8b17bd40b42cf7a2ad02b6045022085bcd14ecfaea3cd1012d6add30";
             }
 
             throw new NotSupportedException("Unsupported architecture.");
@@ -110,10 +109,10 @@ public static class FFmpeg
     private static async ValueTask DownloadAsync()
     {
         using var archiveFile = TempFile.Create();
-        using var httpClient = new HttpClient();
+        using var http = new HttpClient();
 
         // Download the archive
-        await httpClient.DownloadAsync(GetDownloadUrl(), archiveFile.Path);
+        await http.DownloadAsync(GetDownloadUrl(), archiveFile.Path);
 
         // Verify the hash
         await using (var archiveStream = File.OpenRead(archiveFile.Path))
@@ -138,7 +137,7 @@ public static class FFmpeg
         }
 
         // Add the execute permission on Unix
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(
                 FilePath,

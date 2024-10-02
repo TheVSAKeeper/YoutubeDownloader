@@ -10,34 +10,52 @@ using YoutubeExplode.Utils.Extensions;
 
 namespace YoutubeExplode.Bridge;
 
-internal partial class VideoWatchPage
+internal partial class VideoWatchPage(IHtmlDocument content)
 {
-    private readonly IHtmlDocument _content;
-
     [Lazy]
-    public bool IsAvailable => _content.QuerySelector("meta[property=\"og:url\"]") is not null;
+    public bool IsAvailable => content.QuerySelector("meta[property=\"og:url\"]") is not null;
 
     [Lazy]
     public DateTimeOffset? UploadDate =>
-        _content
+        content
+            .QuerySelector("meta[itemprop=\"uploadDate\"]")
+            ?.GetAttribute("content")
+            ?.NullIfWhiteSpace()
+            ?.ParseDateTimeOffsetOrNull()
+        ?? content
             .QuerySelector("meta[itemprop=\"datePublished\"]")
             ?.GetAttribute("content")
             ?.NullIfWhiteSpace()
-            ?.ParseDateTimeOffsetOrNull(new[] { @"yyyy-MM-dd" });
+            ?.ParseDateTimeOffsetOrNull();
 
     [Lazy]
     public long? LikeCount =>
-        _content.Source.Text
-            .Pipe(
-                s =>
-                    Regex
-                        .Match(
-                            s,
-                            """
-            "label"\s*:\s*"([\d,\.]+) likes"
-            """
-                        )
-                        .Groups[1].Value
+        content
+            .Source.Text.Pipe(s =>
+                Regex
+                    .Match(
+                        s,
+                        """
+                        "\s*:\s*"([\d,\.]+) likes"
+                        """
+                    )
+                    .Groups[1]
+                    .Value
+            )
+            .NullIfWhiteSpace()
+            ?.StripNonDigit()
+            .ParseLongOrNull()
+        ?? content
+            .Source.Text.Pipe(s =>
+                Regex
+                    .Match(
+                        s,
+                        """
+                        along with ([\d,\.]+) other people"
+                        """
+                    )
+                    .Groups[1]
+                    .Value
             )
             .NullIfWhiteSpace()
             ?.StripNonDigit()
@@ -45,17 +63,17 @@ internal partial class VideoWatchPage
 
     [Lazy]
     public long? DislikeCount =>
-        _content.Source.Text
-            .Pipe(
-                s =>
-                    Regex
-                        .Match(
-                            s,
-                            """
-            "label"\s*:\s*"([\d,\.]+) dislikes"
-            """
-                        )
-                        .Groups[1].Value
+        content
+            .Source.Text.Pipe(s =>
+                Regex
+                    .Match(
+                        s,
+                        """
+                        "\s*:\s*"([\d,\.]+) dislikes"
+                        """
+                    )
+                    .Groups[1]
+                    .Value
             )
             .NullIfWhiteSpace()
             ?.StripNonDigit()
@@ -63,7 +81,7 @@ internal partial class VideoWatchPage
 
     [Lazy]
     private JsonElement? PlayerConfig =>
-        _content
+        content
             .GetElementsByTagName("script")
             .Select(e => e.Text())
             .Select(s => Regex.Match(s, @"ytplayer\.config\s*=\s*(\{.*\})").Groups[1].Value)
@@ -74,11 +92,11 @@ internal partial class VideoWatchPage
 
     [Lazy]
     public PlayerResponse? PlayerResponse =>
-        _content
+        content
             .GetElementsByTagName("script")
             .Select(e => e.Text())
-            .Select(
-                s => Regex.Match(s, @"var\s+ytInitialPlayerResponse\s*=\s*(\{.*\})").Groups[1].Value
+            .Select(s =>
+                Regex.Match(s, @"var\s+ytInitialPlayerResponse\s*=\s*(\{.*\})").Groups[1].Value
             )
             .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s))
             ?.NullIfWhiteSpace()
@@ -91,8 +109,6 @@ internal partial class VideoWatchPage
             ?.GetStringOrNull()
             ?.Pipe(Json.TryParse)
             ?.Pipe(j => new PlayerResponse(j));
-
-    public VideoWatchPage(IHtmlDocument content) => _content = content;
 }
 
 internal partial class VideoWatchPage

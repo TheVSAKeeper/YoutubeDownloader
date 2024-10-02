@@ -18,7 +18,6 @@ internal static class StringExtensions
     )
     {
         var index = str.IndexOf(sub, comparison);
-
         return index < 0 ? str : str[..index];
     }
 
@@ -59,7 +58,7 @@ internal static class StringExtensions
         new StringBuilder(str)
         {
             [firstCharIndex] = str[secondCharIndex],
-            [secondCharIndex] = str[firstCharIndex]
+            [secondCharIndex] = str[firstCharIndex],
         }.ToString();
 
     public static int? ParseIntOrNull(this string str) =>
@@ -91,10 +90,9 @@ internal static class StringExtensions
             ? result
             : null;
 
-    public static DateTimeOffset? ParseDateTimeOffsetOrNull(this string str, string[] formats) =>
-        DateTimeOffset.TryParseExact(
+    public static DateTimeOffset? ParseDateTimeOffsetOrNull(this string str) =>
+        DateTimeOffset.TryParse(
             str,
-            formats,
             DateTimeFormatInfo.InvariantInfo,
             DateTimeStyles.None,
             out var result

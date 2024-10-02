@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Lazy;
@@ -8,13 +7,11 @@ using YoutubeExplode.Utils.Extensions;
 
 namespace YoutubeExplode.Bridge;
 
-internal partial class PlaylistNextResponse : IPlaylistData
+internal partial class PlaylistNextResponse(JsonElement content) : IPlaylistData
 {
-    private readonly JsonElement _content;
-
     [Lazy]
     private JsonElement? ContentRoot =>
-        _content
+        content
             .GetPropertyOrNull("contents")
             ?.GetPropertyOrNull("twoColumnWatchNextResults")
             ?.GetPropertyOrNull("playlist")
@@ -38,8 +35,26 @@ internal partial class PlaylistNextResponse : IPlaylistData
     public string? Description => null;
 
     [Lazy]
-    public IReadOnlyList<ThumbnailData> Thumbnails =>
-        Videos.FirstOrDefault()?.Thumbnails ?? Array.Empty<ThumbnailData>();
+    public int? Count =>
+        ContentRoot
+            ?.GetPropertyOrNull("totalVideosText")
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull()
+        ?? ContentRoot
+            ?.GetPropertyOrNull("videoCountText")
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.ElementAtOrNull(2)
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull();
+
+    [Lazy]
+    public IReadOnlyList<ThumbnailData> Thumbnails => Videos.FirstOrDefault()?.Thumbnails ?? [];
 
     [Lazy]
     public IReadOnlyList<PlaylistVideoData> Videos =>
@@ -49,16 +64,14 @@ internal partial class PlaylistNextResponse : IPlaylistData
             ?.Select(j => j.GetPropertyOrNull("playlistPanelVideoRenderer"))
             .WhereNotNull()
             .Select(j => new PlaylistVideoData(j))
-            .ToArray() ?? Array.Empty<PlaylistVideoData>();
+            .ToArray() ?? [];
 
     [Lazy]
     public string? VisitorData =>
-        _content
+        content
             .GetPropertyOrNull("responseContext")
             ?.GetPropertyOrNull("visitorData")
             ?.GetStringOrNull();
-
-    public PlaylistNextResponse(JsonElement content) => _content = content;
 }
 
 internal partial class PlaylistNextResponse
