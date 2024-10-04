@@ -6,12 +6,11 @@ using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader;
 
-public class Helper(DownloadService downloadService, HttpClient httpClient, ILogger<Helper> logger)
+public class Helper(DownloadService downloadService, HttpClient httpClient, YoutubeClient youtubeClient, ILogger<Helper> logger)
 {
-    public async Task<List<VideoInfo>> Download(string chanelUrl)
+    public async Task<List<VideoInfo>> Download(string channelUrl)
     {
-        YoutubeClient youtube = new();
-        IAsyncEnumerable<PlaylistVideo> yVideos = youtube.Channels.GetUploadsAsync(chanelUrl);
+        IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.Channels.GetUploadsAsync(channelUrl);
 
         List<VideoInfo> videos = [];
 
@@ -21,33 +20,40 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, ILog
 
             VideoInfo video = new(item.Title,
                 fileName,
-                0, item.Url,
+                VideoStatus.NotDownloaded,
+                item.Url,
                 item.Thumbnails.OrderByDescending(x => x.Resolution.Area).FirstOrDefault()?.Url,
                 item.PlaylistId.Value);
 
             videos.Add(video);
-            logger.LogInformation("Add video: {Title}", item.Title);
+            logger.LogDebug("Добавлено видео: {Title}", item.Title);
         }
 
+        logger.LogInformation("Загружено {Count} видео из канала: {ChannelUrl}", videos.Count, channelUrl);
         return videos;
     }
 
-    public async Task GetItem(VideoInfo videoInfo, string path)
+    public async Task<VideoStatus> GetItem(VideoInfo videoInfo, string path)
     {
         string url = videoInfo.Url;
 
+        logger.LogInformation("Начинаем загрузку видео: {VideoTitle} из {Url}", videoInfo.Title, url);
         (DownloadItem? item, DownloadItemStream? stream) = await downloadService.DownloadVideo(url, path);
 
-        string? thumbnailUrl = videoInfo.ThumbnailUrl;
-
-        if (string.IsNullOrEmpty(thumbnailUrl) == false)
+        if (item == null)
         {
-            await DownloadThumbnail(thumbnailUrl, Path.Combine(path, videoInfo.FileName + "_thumbnail.jpg"));
+            logger.LogError("Ошибка при загрузке видео: {VideoTitle}", videoInfo.Title);
+            return VideoStatus.Error;
         }
 
-        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_title.txt"), videoInfo.Title);
-        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_description.txt"), item.Video.Description);
-        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_upload-date.txt"), item.Video.UploadDate.DateTime.ToLongTimeString());
+        await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_title.txt"), videoInfo.Title);
+        await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_description.txt"), item.Video.Description);
+        await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_upload-date.txt"), item.Video.UploadDate.DateTime.ToLongTimeString());
+        await DownloadThumbnail(videoInfo.ThumbnailUrl, Path.Combine(path, $"{videoInfo.FileName}_thumbnail.jpg"));
+
+        logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
+
+        return VideoStatus.Downloaded;
     }
 
     public void RefreshDirectories(string path)
@@ -65,7 +71,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, ILog
             if (Directory.Exists(tempFolderPath) == false)
             {
                 Directory.CreateDirectory(tempFolderPath);
-                logger.LogInformation("Создана временная директория для видео: {FullVideoFolderPath}", path);
+                logger.LogInformation("Создана временная директория для видео: {FullTempFolderPath}", tempFolderPath);
             }
 
             FileInfo[] tempFiles = Directory.GetFiles(tempFolderPath)
@@ -77,7 +83,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, ILog
             foreach (FileInfo file in tempFiles)
             {
                 File.Delete(file.FullName);
-                logger.LogInformation("Удален временный файл: {File}", file);
+                logger.LogDebug("Удален временный файл: {File}", file.FullName);
             }
 
             logger.LogInformation("Всего удалено временных файлов: {Count}, Объем: {TotalSize:F2} мегабайт", tempFiles.Length, totalFileSize);
@@ -92,22 +98,28 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, ILog
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Ошибка при обновлении директорий");
+            logger.LogError(exception, "Ошибка при обновлении директорий: {Path}", path);
         }
     }
 
-    private async Task DownloadThumbnail(string thumbnailUrl, string savePath)
+    private async Task DownloadThumbnail(string? thumbnailUrl, string savePath)
     {
+        if (string.IsNullOrEmpty(thumbnailUrl))
+        {
+            logger.LogWarning("URL миниатюры пустой или недоступен. Пропуск загрузки миниатюры");
+            return;
+        }
 
         try
         {
+            logger.LogDebug("Начинаем загрузку миниатюры: {ThumbnailUrl}", thumbnailUrl);
             HttpResponseMessage response = await httpClient.GetAsync(thumbnailUrl);
             response.EnsureSuccessStatusCode();
 
             await using FileStream fileStream = new(savePath, FileMode.Create, FileAccess.Write, FileShare.None);
             await response.Content.CopyToAsync(fileStream);
 
-            logger.LogInformation("Миниатюра сохранена в: {Path}", savePath);
+            logger.LogDebug("Миниатюра успешно сохранена в: {Path}", savePath);
         }
         catch (Exception ex)
         {
