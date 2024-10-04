@@ -1,33 +1,87 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using YoutubeChannelDownloader;
+using YoutubeChannelDownloader.Configurations;
+using YoutubeExplode;
 
-Console.WriteLine("Hello, World!");
+JsonSerializerOptions serializerOptions = new()
+{
+    WriteIndented = true,
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+};
 
+IConfigurationRoot configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", false, true)
+    .Build();
 
-var helper = new Helper();
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console()
+    .CreateLogger();
 
-var basePath = @"E:\bobgroup\projects\youtubeDownloader\downloadChannel";
-var chanelId = "UCGNZ41YzeZuLHcEOGt835gA";
-var dirPath = Path.Combine(basePath, chanelId);
-var dataPath = Path.Combine(dirPath, "data.json");
+ServiceProvider serviceProvider = new ServiceCollection()
+    .AddLogging(loggingBuilder => loggingBuilder.AddSerilog(dispose: true))
+    .Configure<DownloadOptions>(configuration.GetSection(nameof(DownloadOptions)))
+    .Configure<FFmpegOptions>(configuration.GetSection(nameof(FFmpegOptions)))
+    .AddSingleton<Helper>()
+    .AddSingleton<YoutubeClient>()
+    .AddSingleton<DownloadService>()
+    .AddSingleton<YoutubeDownloadService>()
+    .AddSingleton<FFmpegConverter>()
+    .AddSingleton<FFmpeg>()
+    .AddSingleton<HttpClient>()
+    .BuildServiceProvider();
+
+ILogger<Program> logger = serviceProvider.GetRequiredService<ILogger<Program>>();
+
+Helper helper = serviceProvider.GetRequiredService<Helper>();
+
+string basePath = @"E:\bobgroup\projects\youtubeDownloader\downloadChannel";
+//string basePath = @"C:\Downloads";
+string chanelId = "UCGNZ41YzeZuLHcEOGt835gA";
+string dirPath = Path.Combine(basePath, chanelId);
+string videosPath = Path.Combine(dirPath, "videos");
+string dataPath = Path.Combine(dirPath, "data.json");
+
 if (!Directory.Exists(dirPath))
 {
     Directory.CreateDirectory(dirPath);
 }
 
-if (true)
+helper.RefreshDirectories(videosPath);
+
+if (File.Exists(dataPath))
 {
-    var videoData = File.ReadAllText(dataPath);
-    var videos = JsonSerializer.Deserialize<List<VideoInfo>>(videoData);
-    await helper.GetItem(videos.Last(), dirPath);
+    string videoData = await File.ReadAllTextAsync(dataPath);
+    List<VideoInfo>? videos = JsonSerializer.Deserialize<List<VideoInfo>>(videoData);
+
+    if (videos != null && videos.Count != 0)
+    {
+        videos.Reverse();
+
+        foreach (VideoInfo video in videos.Take(3))
+        {
+            await helper.GetItem(video, videosPath);
+        }
+    }
+    else
+    {
+        logger.LogWarning("No videos found in data.json");
+    }
 }
 else
 {
-    var videos = await helper.Download(chanelId); // я
-    var videoData = JsonSerializer.Serialize(videos);
-    File.WriteAllText(dataPath, videoData);
+    List<VideoInfo> videos = await helper.Download(chanelId);
+    string videoData = JsonSerializer.Serialize(videos, serializerOptions);
+    await File.WriteAllTextAsync(dataPath, videoData, Encoding.UTF8);
 }
-//var fullPath = Path.Combine(basePath, fileName + ".mp4");
-// await helper.Download("UCOuW8i824NprPKrM4Pq4R0w"); // боксёр
 
+helper.RefreshDirectories(videosPath);
+
+Log.CloseAndFlush();

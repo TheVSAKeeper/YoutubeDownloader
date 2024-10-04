@@ -1,48 +1,32 @@
-﻿using AngleSharp.Dom;
-using System.Diagnostics;
-using System.IO;
-using System.Text;
-using System.Xml.Linq;
+﻿using Microsoft.Extensions.Logging;
+using YoutubeChannelDownloader.Extensions;
+using YoutubeChannelDownloader.Models;
 using YoutubeExplode;
-using YoutubeExplode.Videos;
-using YoutubeExplode.Videos.Streams;
+using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader;
 
-public class Helper
+public class Helper(DownloadService downloadService, HttpClient httpClient, ILogger<Helper> logger)
 {
     public async Task<List<VideoInfo>> Download(string chanelUrl)
     {
-        var youtube = new YoutubeClient();
-        //var asd = await youtube.Channels.GetAsync(chanelUrl);
-        //var asd2 = youtube.Channels.GetUploadsAsync(asd.Id);
-        var yVideos = youtube.Channels.GetUploadsAsync(chanelUrl);
+        YoutubeClient youtube = new();
+        IAsyncEnumerable<PlaylistVideo> yVideos = youtube.Channels.GetUploadsAsync(chanelUrl);
 
-        var videos = new List<VideoInfo>();
+        List<VideoInfo> videos = [];
 
-        await foreach (var item in yVideos)
+        await foreach (PlaylistVideo item in yVideos)
         {
-            var fileName = item.Title
-                .Replace("\\", "_")
-                .Replace("/", "_")
-                .Replace(":", "_")
-                .Replace("*", "_")
-                .Replace("?", "_")
-                .Replace("\"", "_")
-                .Replace("<", "_")
-                .Replace(">", "_")
-                .Replace("|", "_");
-            VideoInfo video = new VideoInfo
-            {
-                FileName = fileName,
-                Status = 0, // не скачано
-                Title = item.Title,
-                Url = item.Url,
-                ThumbnailUrl = item.Thumbnails.OrderByDescending(x => x.Resolution.Width).FirstOrDefault()?.Url,
-                PlaylistId = item.PlaylistId.Value,
-            };
+            string fileName = item.GetVideoFileName();
+
+            VideoInfo video = new(item.Title,
+                fileName,
+                0, item.Url,
+                item.Thumbnails.OrderByDescending(x => x.Resolution.Area).FirstOrDefault()?.Url,
+                item.PlaylistId.Value);
+
             videos.Add(video);
-            Console.WriteLine("add video: " + item.Title);
+            logger.LogInformation("Add video: {Title}", item.Title);
         }
 
         return videos;
@@ -50,188 +34,84 @@ public class Helper
 
     public async Task GetItem(VideoInfo videoInfo, string path)
     {
-        var url = videoInfo.Url;
-        var youtube = new YoutubeClient();
-        var video = await youtube.Videos.GetAsync(url);
+        string url = videoInfo.Url;
 
-        var streamManifest = await youtube.Videos.Streams.GetManifestAsync(url);
+        (DownloadItem? item, DownloadItemStream? stream) = await downloadService.DownloadVideo(url, path);
 
-        var id = Guid.NewGuid();
+        string? thumbnailUrl = videoInfo.ThumbnailUrl;
 
-        var streams = streamManifest.Streams.Select((x, i) =>
-                new DownloadItemSteam
-                {
-                    Id = i,
-                    Name = id.ToString() + "_" + i + ".mp4",
-                    Stream = streamManifest.Streams[i],
-                }).ToList();
-        var streamId = streams.Count();
-
-        var types = new List<string> { "mp4" };
-        foreach (var type in types)
+        if (string.IsNullOrEmpty(thumbnailUrl) == false)
         {
-            var bestMuxedStream = streams.Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is MuxedStreamInfo)
-                .OrderByDescending(x => ((MuxedStreamInfo)x.Stream).VideoQuality.MaxHeight).FirstOrDefault();
-            var bestVideoStream = streams.Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is VideoOnlyStreamInfo)
-                .OrderByDescending(x => ((VideoOnlyStreamInfo)x.Stream).VideoQuality.MaxHeight).FirstOrDefault();
-            var bestAudioStream = streams.Where(x => x.Stream != null && x.Stream.Container.Name == type && x.Stream is AudioOnlyStreamInfo)
-                .OrderByDescending(x => ((AudioOnlyStreamInfo)x.Stream).Size).FirstOrDefault();
-            int muxedMaxHeight = 0;
-            if (bestMuxedStream != null)
-            {
-                muxedMaxHeight = ((MuxedStreamInfo)bestMuxedStream.Stream).VideoQuality.MaxHeight;
-            }
-
-            if (bestVideoStream != null && bestAudioStream != null)
-            {
-                if (muxedMaxHeight < ((VideoOnlyStreamInfo)bestVideoStream.Stream).VideoQuality.MaxHeight)
-                {
-                    streams.Insert(0, new DownloadItemSteam
-                    {
-                        Id = streamId,
-                        Name = videoInfo.FileName,
-                        IsCombineAfterDownload = true,
-                        CombineAfterDownloadStreamAudio = bestAudioStream.Stream,
-                        CombineAfterDownloadStreamVideo = bestVideoStream.Stream,
-                    });
-                    streamId++;
-                }
-            }
+            await DownloadThumbnail(thumbnailUrl, Path.Combine(path, videoInfo.FileName + "_thumbnail.jpg"));
         }
 
-        streams[0].FullPath = Path.Combine(path, streams[0].Name);
-        await DownloadFromQueue(streams[0]);
-        File.WriteAllText(Path.Combine(path, videoInfo.FileName + "_title.txt"), videoInfo.Title);
-        File.WriteAllText(Path.Combine(path, videoInfo.FileName + "_description.txt"), video.Description);
+        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_title.txt"), videoInfo.Title);
+        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_description.txt"), item.Video.Description);
+        await File.WriteAllTextAsync(Path.Combine(path, videoInfo.FileName + "_upload-date.txt"), item.Video.UploadDate.DateTime.ToLongTimeString());
     }
 
-    public async Task DownloadFromQueue(DownloadItemSteam downloadStream)
+    public void RefreshDirectories(string path)
     {
-        if (downloadStream.IsCombineAfterDownload)
+        string tempFolderPath = Path.Combine(path, ".temp");
+
+        try
         {
-            var audioPath = downloadStream.FullPath + "_audio." + downloadStream.CombineAfterDownloadStreamVideo.Container.Name;
-            var videoPath = downloadStream.FullPath + "_video." + downloadStream.CombineAfterDownloadStreamVideo.Container.Name;
+            if (Directory.Exists(path) == false)
+            {
+                Directory.CreateDirectory(path);
+                logger.LogInformation("Создана директория для видео: {FullVideoFolderPath}", path);
+            }
 
+            if (Directory.Exists(tempFolderPath) == false)
+            {
+                Directory.CreateDirectory(tempFolderPath);
+                logger.LogInformation("Создана временная директория для видео: {FullVideoFolderPath}", path);
+            }
 
-            var task = YoutubeDownloader.Download(downloadStream.CombineAfterDownloadStreamAudio, audioPath);
-            var task2 = YoutubeDownloader.Download(downloadStream.CombineAfterDownloadStreamVideo, videoPath);
-            Task.WaitAll(task, task2);
+            FileInfo[] tempFiles = Directory.GetFiles(tempFolderPath)
+                .Select(fileName => new FileInfo(fileName))
+                .ToArray();
 
-            var args = "-i \"" + videoPath + "\" -i \"" + audioPath + "\" -c copy \"" + downloadStream.FullPath + "\"";
-            await RunFFMPEG(args);
+            double totalFileSize = tempFiles.Sum(fileInfo => fileInfo.Length) / 1024.0 / 1024;
+
+            foreach (FileInfo file in tempFiles)
+            {
+                File.Delete(file.FullName);
+                logger.LogInformation("Удален временный файл: {File}", file);
+            }
+
+            logger.LogInformation("Всего удалено временных файлов: {Count}, Объем: {TotalSize:F2} мегабайт", tempFiles.Length, totalFileSize);
+
+            FileInfo[] mainFiles = Directory.GetFiles(path)
+                .Select(fileName => new FileInfo(fileName))
+                .ToArray();
+
+            double length = mainFiles.Sum(fileInfo => fileInfo.Length) / 1024.0 / 1024;
+
+            logger.LogInformation("Всего файлов в директории: {Count}, Объем: {TotalSize:F2} мегабайт", mainFiles.Length, length);
         }
-        else
+        catch (Exception exception)
         {
-            await YoutubeDownloader.Download(downloadStream.Stream, downloadStream.FullPath);
+            logger.LogError(exception, "Ошибка при обновлении директорий");
         }
     }
 
-
-    public async Task RunFFMPEG(string ffmpegCommand)
+    private async Task DownloadThumbnail(string thumbnailUrl, string savePath)
     {
-        using Process process = new Process();
-        ProcessStartInfo processStartInfo2 = (process.StartInfo = new ProcessStartInfo
-        {
-            WindowStyle = ProcessWindowStyle.Hidden,
-            FileName = "C:\\Services\\utils\\ffmpeg\\ffmpeg.exe",
-            RedirectStandardError = true,
-            Arguments = ffmpegCommand
-        });
-        process.Start();
 
-
-        string lastLine = null;
-        StringBuilder runMessage = new StringBuilder();
-        while (!process.StandardError.EndOfStream)
+        try
         {
-            string text = await process.StandardError.ReadLineAsync().ConfigureAwait(continueOnCapturedContext: false);
-            runMessage.AppendLine(text);
-            lastLine = text;
+            HttpResponseMessage response = await httpClient.GetAsync(thumbnailUrl);
+            response.EnsureSuccessStatusCode();
+
+            await using FileStream fileStream = new(savePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await response.Content.CopyToAsync(fileStream);
+
+            logger.LogInformation("Миниатюра сохранена в: {Path}", savePath);
         }
-
-        await process.WaitForExitAsync().ConfigureAwait(continueOnCapturedContext: false);
-        if (process.ExitCode != 0)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Ошибка при загрузке миниатюры: {ThumbnailUrl}", thumbnailUrl);
         }
-    }
-
-    public class YoutubeDownloader
-    {
-        public static async Task Download(IStreamInfo stream, string path)
-        {
-            var youtube = new YoutubeClient();
-            await youtube.Videos.Streams.DownloadAsync(stream, path);
-        }
-    }
-
-    public class DownloadItem
-    {
-        public Guid Id { get; set; }
-        public string Url { get; set; }
-        public List<DownloadItemSteam> Streams { get; set; }
-        public Video Video { get; internal set; }
-    }
-
-    public class DownloadItemSteam
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public string FullPath { get; set; }
-        public IStreamInfo Stream { get; set; }
-
-        public bool IsCombineAfterDownload { get; set; }
-        public IStreamInfo CombineAfterDownloadStreamAudio { get; set; }
-        public IStreamInfo CombineAfterDownloadStreamVideo { get; set; }
-
-
-        public string Title
-        {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    var video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                    return "Muxed (" + video.VideoQuality.MaxHeight + " | " + video.Container.Name + ") ~" + SizeMB + "МБ";
-                }
-                else
-                {
-                    return Stream.ToString() + " " + SizeMB + "МБ";
-                }
-            }
-        }
-
-        public double SizeMB
-        {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    var size = CombineAfterDownloadStreamAudio.Size.MegaBytes + CombineAfterDownloadStreamVideo.Size.MegaBytes;
-                    return Math.Round(size, 2);
-                }
-                else
-                {
-                    return Math.Round(Stream.Size.MegaBytes, 2);
-                }
-            }
-        }
-
-        public string VideoType
-        {
-            get
-            {
-                if (IsCombineAfterDownload)
-                {
-                    var video = (VideoOnlyStreamInfo)CombineAfterDownloadStreamVideo;
-                    return video.Container.Name;
-                }
-                else
-                {
-                    return Stream.Container.Name;
-                }
-            }
-        }
-
-        public Action AfterDownloadAction { get; set; }
     }
 }
