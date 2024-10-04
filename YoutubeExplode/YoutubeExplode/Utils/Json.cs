@@ -1,7 +1,7 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
-using YoutubeExplode.Utils.Extensions;
 
 namespace YoutubeExplode.Utils;
 
@@ -16,21 +16,27 @@ internal static class Json
 
         // We trust that the source contains valid json, we just need to extract it.
         // To do it, we will be matching curly braces until we even out.
-        foreach (var (c, i) in source.WithIndex())
+        foreach ((int i, char ch) in source.Index())
         {
             var prev = i > 0 ? source[i - 1] : default;
 
-            buffer.Append(c);
+            buffer.Append(ch);
 
             // Detect if inside a string
-            if (c == '"' && prev != '\\')
+            if (ch == '"' && prev != '\\')
+            {
                 isInsideString = !isInsideString;
+            }
             // Opening brace
-            else if (c == '{' && !isInsideString)
+            else if (ch == '{' && !isInsideString)
+            {
                 depth++;
+            }
             // Closing brace
-            else if (c == '}' && !isInsideString)
+            else if (ch == '}' && !isInsideString)
+            {
                 depth--;
+            }
 
             // Break when evened out
             if (depth == 0)

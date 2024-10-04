@@ -40,8 +40,7 @@ public partial class Thumbnail
             ),
             new Thumbnail(
                 $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg",
-                new Resolution(480, 360)
-            )
+                new Resolution(480, 360)),
         ];
 }
 

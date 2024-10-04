@@ -32,13 +32,9 @@ internal class YoutubeHttpHandler : ClientDelegatingHandler
         // This is required to access some personalized content, such as mix playlists.
         // https://github.com/Tyrrrz/YoutubeExplode/issues/730
         // https://github.com/Tyrrrz/YoutubeExplode/issues/732
-        _cookieContainer.Add(
-            new Cookie(
-                "SOCS",
-                "CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjMwODI5LjA3X3AxGgJlbiACGgYIgLC_pwY"
-            )
+        _cookieContainer.Add(new Cookie("SOCS", "CAISEwgDEgk2NzM5OTg2ODUaAmVuIAEaBgiA6p23Bg")
             {
-                Domain = "youtube.com"
+                Domain = "youtube.com",
             }
         );
     }

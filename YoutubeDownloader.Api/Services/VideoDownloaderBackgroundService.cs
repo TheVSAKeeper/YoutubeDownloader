@@ -12,9 +12,9 @@ public class VideoDownloaderBackgroundService(ILogger<VideoDownloaderBackgroundS
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("{Name} is starting.", nameof(VideoDownloaderBackgroundService));
+        logger.LogInformation("{Name} is starting", nameof(VideoDownloaderBackgroundService));
 
-        stoppingToken.Register(() => logger.LogInformation("{Name} is stopping.", nameof(VideoDownloaderBackgroundService)));
+        stoppingToken.Register(() => logger.LogInformation("{Name} is stopping", nameof(VideoDownloaderBackgroundService)));
 
         while (await _timer.WaitForNextTickAsync(stoppingToken))
         {

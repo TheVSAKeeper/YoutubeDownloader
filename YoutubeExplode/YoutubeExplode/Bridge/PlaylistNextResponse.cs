@@ -1,7 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using Lazy;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Lazy;
 using YoutubeExplode.Utils;
 using YoutubeExplode.Utils.Extensions;
 
@@ -33,6 +33,25 @@ internal partial class PlaylistNextResponse(JsonElement content) : IPlaylistData
     public string? ChannelId => null;
 
     public string? Description => null;
+
+    [Lazy]
+    public int? Count =>
+        ContentRoot
+            ?.GetPropertyOrNull("totalVideosText")
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull()
+        ?? ContentRoot
+            ?.GetPropertyOrNull("videoCountText")
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.ElementAtOrNull(2)
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull();
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails => Videos.FirstOrDefault()?.Thumbnails ?? [];

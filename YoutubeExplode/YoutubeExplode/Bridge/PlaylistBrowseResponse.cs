@@ -1,7 +1,7 @@
+using Lazy;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Lazy;
 using YoutubeExplode.Utils;
 using YoutubeExplode.Utils.Extensions;
 
@@ -100,6 +100,28 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.GetPropertyOrNull("textInputFormFieldRenderer")
             ?.GetPropertyOrNull("value")
             ?.GetStringOrNull();
+
+    [Lazy]
+    public int? Count =>
+        SidebarPrimary
+            ?.GetPropertyOrNull("stats")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("runs")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("text")
+            ?.GetStringOrNull()
+            ?.ParseIntOrNull()
+        ?? SidebarPrimary
+            ?.GetPropertyOrNull("stats")
+            ?.EnumerateArrayOrNull()
+            ?.FirstOrNull()
+            ?.GetPropertyOrNull("simpleText")
+            ?.GetStringOrNull()
+            ?.Split(' ')
+            ?.FirstOrDefault()
+            ?.ParseIntOrNull();
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>

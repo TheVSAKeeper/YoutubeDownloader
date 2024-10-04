@@ -1,4 +1,5 @@
-﻿using YoutubeExplode;
+﻿using System.Diagnostics;
+using YoutubeExplode;
 
 namespace YoutubeDownloader.Api.Services;
 
@@ -12,6 +13,8 @@ public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<Youtube
     public ValueTask DownloadWithProgressAsync(IStreamInfo streamInfo, string path, string streamTitle, string videoTitle, CancellationToken cancellationToken)
     {
         double oldPercent = -1;
+        long totalBytesDownloaded = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         string streamType = streamInfo switch
         {
@@ -30,6 +33,15 @@ public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<Youtube
 
             logger.LogDebug("{StreamType}: {Percent:P2}\t{StreamTitle}\t{VideoTitle}", streamType, percent, streamTitle, videoTitle);
             oldPercent = percent;
+
+            long bytesDownloaded = (long)(streamInfo.Size.MegaBytes * percent);
+            long bytesThisUpdate = bytesDownloaded - totalBytesDownloaded;
+            totalBytesDownloaded = bytesDownloaded;
+
+            double elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+            double speedInBytesPerSecond = elapsedSeconds > 0 ? bytesThisUpdate / elapsedSeconds : 0;
+
+            logger.LogInformation("{StreamType}: Speed: {Speed:F3} MegaBytes/sec\t{StreamTitle}\t{VideoTitle}", streamType, speedInBytesPerSecond, streamTitle, videoTitle);
         });
 
         return DownloadAsync(streamInfo, path, progress, cancellationToken);
