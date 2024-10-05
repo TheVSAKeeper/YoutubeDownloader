@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using YoutubeChannelDownloader.Configurations;
+using YoutubeChannelDownloader.Models;
 
 namespace YoutubeChannelDownloader;
 
@@ -16,6 +17,42 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
     };
 
     private readonly DownloadOptions _options = options.Value;
+    private List<VideoInfo> _videos = [];
+
+    public async Task DownloadPlaylists(string channelId)
+    {
+        string dirPath = Path.Combine(_options.VideoFolderPath, channelId);
+        string dataPath = Path.Combine(dirPath, "playlists.json");
+        string videosPath = Path.Combine(dirPath, "playlists");
+
+        logger.LogDebug("Проверка наличия директории для канала: {ChannelId}", channelId);
+
+        if (Directory.Exists(dirPath) == false)
+        {
+            logger.LogDebug("Директория не найдена. Создание директории: {DirPath}", dirPath);
+            Directory.CreateDirectory(dirPath);
+        }
+
+        if (Directory.Exists(videosPath) == false)
+        {
+            Directory.CreateDirectory(videosPath);
+            logger.LogInformation("Создана директория для видео: {FullVideoFolderPath}", videosPath);
+        }
+
+        logger.LogDebug("Файл data.json не найден. Начинаем загрузку видео для канала: {ChannelId}", channelId);
+        List<PlaylistInfo> playlists = await helper.DownloadPlaylist(_videos);
+
+        foreach (PlaylistInfo playlist in playlists)
+        {
+            string path = Path.Combine(videosPath, playlist.Id);
+            Directory.CreateDirectory(path);
+            await helper.GetPlaylist(playlist, path);
+        }
+
+        string updatedVideoData = JsonSerializer.Serialize(playlists, _serializerOptions);
+        await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
+        logger.LogDebug("Данные видео успешно обновлены и сохранены в файл: {DataPath}", dataPath);
+    }
 
     public async Task DownloadVideosAsync(string channelId)
     {
@@ -61,6 +98,8 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
             videos = await helper.Download(channelId);
             videos.Reverse();
         }
+
+        _videos = [..videos!];
 
         string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
         await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);

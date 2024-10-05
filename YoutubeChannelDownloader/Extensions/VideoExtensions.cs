@@ -5,9 +5,14 @@ namespace YoutubeChannelDownloader.Extensions;
 
 public static class VideoExtensions
 {
-    public static string GetVideoFileName(this IVideo video)
+    public static string GetFileName(this IVideo video)
+    {
+        return video.Title.GetFileName();
+    }
+
+    public static string GetFileName(this string video)
     {
         Regex illegalInFileName = new($"[{Regex.Escape(new string(Path.GetInvalidFileNameChars()))}]", RegexOptions.Compiled);
-        return illegalInFileName.Replace(video.Title, "_");
+        return illegalInFileName.Replace(video, "_");
     }
 }

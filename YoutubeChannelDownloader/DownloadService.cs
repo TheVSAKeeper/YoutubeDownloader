@@ -1,7 +1,5 @@
 ﻿using CSharpFunctionalExtensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using YoutubeChannelDownloader.Configurations;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode.Videos;
@@ -12,10 +10,8 @@ namespace YoutubeChannelDownloader;
 public class DownloadService(
     ILogger<DownloadService> logger,
     YoutubeDownloadService youtubeDownloadService,
-    FFmpegConverter converter,
-    IOptions<DownloadOptions> options)
+    FFmpegConverter converter)
 {
-    private readonly DownloadOptions _options = options.Value;
     private readonly List<DownloadItem> _items = [];
 
     public bool IsNeedDownloadAny => _items.Any(item => item.IsNeedDownloadAnyStream);
@@ -84,7 +80,7 @@ public class DownloadService(
         DownloadItem? downloadItem = _items.FirstOrDefault(x => x.Streams.Any(itemSteam => itemSteam.State == DownloadItemState.Wait));
         DownloadItemStream? downloadStream = downloadItem?.GetWaitStreams().FirstOrDefault();
 
-        if (downloadStream is null || downloadItem is null)
+        if (downloadStream == null || downloadItem == null)
         {
             logger.LogWarning("Очередь скачивания пустая");
             return;

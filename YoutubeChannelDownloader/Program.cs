@@ -5,9 +5,11 @@ using YoutubeChannelDownloader;
 using YoutubeChannelDownloader.Configurations;
 using YoutubeExplode;
 
+bool isDevelopment = File.Exists(Path.Combine(Environment.CurrentDirectory, "appsettings.Development.json"));
+
 IConfigurationRoot configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.Development.json", false, true)
+    .AddJsonFile($"appsettings{(isDevelopment ? ".Development" : "")}.json", false, true)
     .Build();
 
 Log.Logger = new LoggerConfiguration()
@@ -33,5 +35,6 @@ ChannelDownloaderService channelDownloaderService = serviceProvider.GetRequiredS
 
 string channelId = "UCGNZ41YzeZuLHcEOGt835gA";
 await channelDownloaderService.DownloadVideosAsync(channelId);
+//await channelDownloaderService.DownloadPlaylists(channelId);
 
 Log.CloseAndFlush();

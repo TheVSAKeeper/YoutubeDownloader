@@ -44,8 +44,6 @@ public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<Youtube
 
             logger.LogDebug("{StreamType}: {Percent:P2}\t{Speed:F3} MB/s\t{StreamTitle}\t{VideoTitle}", streamType, percent, speedInBytesPerSecond, streamTitle, videoTitle);
             oldPercent = percent;
-
-
         });
 
         return DownloadAsync(streamInfo, path, progress, cancellationToken);

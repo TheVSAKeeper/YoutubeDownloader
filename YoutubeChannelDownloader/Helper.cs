@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
+using System.Globalization;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode;
+using YoutubeExplode.Common;
 using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader;
@@ -11,19 +13,18 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
     public async Task<List<VideoInfo>> Download(string channelUrl)
     {
         IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.Channels.GetUploadsAsync(channelUrl);
-
         List<VideoInfo> videos = [];
 
         await foreach (PlaylistVideo item in yVideos)
         {
-            string fileName = item.GetVideoFileName();
+            string fileName = item.GetFileName();
 
             VideoInfo video = new(item.Title,
                 fileName,
                 VideoStatus.NotDownloaded,
                 item.Url,
-                item.Thumbnails.OrderByDescending(x => x.Resolution.Area).FirstOrDefault()?.Url,
-                item.PlaylistId.Value);
+                item.Thumbnails.TryGetWithHighestResolution()?.Url,
+                item.PlaylistId);
 
             videos.Add(video);
             logger.LogDebug("Добавлено видео: {Title}", item.Title);
@@ -31,6 +32,26 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
 
         logger.LogInformation("Загружено {Count} видео из канала: {ChannelUrl}", videos.Count, channelUrl);
         return videos;
+    }
+
+    public async Task<List<PlaylistInfo>> DownloadPlaylist(List<VideoInfo> videos)
+    {
+        IEnumerable<string> playlistIds = videos.Select(x => x.PlaylistId).Distinct();
+        List<PlaylistInfo> playlists = [];
+
+        foreach (string id in playlistIds)
+        {
+            Playlist playlist = await youtubeClient.Playlists.GetAsync(id);
+
+            PlaylistInfo info = new(playlist.Id,
+                playlist.Title,
+                playlist.Description,
+                playlist.Thumbnails.TryGetWithHighestResolution()?.Url);
+
+            playlists.Add(info);
+        }
+
+        return playlists;
     }
 
     public async Task<VideoStatus> GetItem(VideoInfo videoInfo, string path)
@@ -48,12 +69,22 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
 
         await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_title.txt"), videoInfo.Title);
         await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_description.txt"), item.Video.Description);
-        await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_upload-date.txt"), item.Video.UploadDate.DateTime.ToLongTimeString());
+        await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_upload-date.txt"), item.Video.UploadDate.ToString(CultureInfo.InvariantCulture));
         await DownloadThumbnail(videoInfo.ThumbnailUrl, Path.Combine(path, $"{videoInfo.FileName}_thumbnail.jpg"));
 
         logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
 
         return VideoStatus.Downloaded;
+    }
+
+    public async Task GetPlaylist(PlaylistInfo videoInfo, string path)
+    {
+        string filename = videoInfo.Title.GetFileName();
+        await File.WriteAllTextAsync(Path.Combine(path, $"{filename}_title.txt"), videoInfo.Title);
+        await File.WriteAllTextAsync(Path.Combine(path, $"{filename}_description.txt"), videoInfo.Description);
+        await DownloadThumbnail(videoInfo.ThumbnailUrl, Path.Combine(path, $"{filename}_thumbnail.jpg"));
+
+        logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
     }
 
     public void RefreshDirectories(string path)

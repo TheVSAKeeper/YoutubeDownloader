@@ -1,4 +1,4 @@
-﻿namespace YoutubeChannelDownloader;
+﻿namespace YoutubeChannelDownloader.Models;
 
 public enum VideoStatus
 {

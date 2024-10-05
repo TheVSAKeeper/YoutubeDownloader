@@ -25,5 +25,5 @@ public enum DownloadItemState
     /// <summary>
     ///     Ошибка.
     /// </summary>
-    Error
+    Error,
 }
