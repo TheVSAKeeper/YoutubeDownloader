@@ -5,7 +5,7 @@ using YoutubeChannelDownloader.Models;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
-namespace YoutubeChannelDownloader;
+namespace YoutubeChannelDownloader.Services;
 
 public class DownloadService(
     ILogger<DownloadService> logger,

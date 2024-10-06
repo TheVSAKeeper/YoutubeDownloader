@@ -5,7 +5,7 @@ using YoutubeExplode;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
-namespace YoutubeChannelDownloader;
+namespace YoutubeChannelDownloader.Services;
 
 public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<YoutubeDownloadService> logger)
 {

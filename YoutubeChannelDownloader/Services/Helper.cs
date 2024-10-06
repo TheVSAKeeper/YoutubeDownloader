@@ -3,13 +3,22 @@ using System.Globalization;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode;
+using YoutubeExplode.Channels;
 using YoutubeExplode.Common;
 using YoutubeExplode.Playlists;
 
-namespace YoutubeChannelDownloader;
+namespace YoutubeChannelDownloader.Services;
 
 public class Helper(DownloadService downloadService, HttpClient httpClient, YoutubeClient youtubeClient, ILogger<Helper> logger)
 {
+    private readonly Func<string, Task<Channel?>>[] _parsers =
+    [
+        async url => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
+        async url => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
+        async url => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
+        async url => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
+    ];
+
     public async Task<List<VideoInfo>> Download(string channelUrl)
     {
         IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.Channels.GetUploadsAsync(channelUrl);
@@ -131,6 +140,21 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
         {
             logger.LogError(exception, "Ошибка при обновлении директорий: {Path}", path);
         }
+    }
+
+    public async Task<Channel?> GetChannel(string channelUrl)
+    {
+        foreach (Func<string, Task<Channel?>> parser in _parsers)
+        {
+            Channel? channel = await parser(channelUrl);
+
+            if (channel != null)
+            {
+                return channel;
+            }
+        }
+
+        return null;
     }
 
     private async Task DownloadThumbnail(string? thumbnailUrl, string savePath)

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using YoutubeChannelDownloader;
 using YoutubeChannelDownloader.Configurations;
+using YoutubeChannelDownloader.Services;
 using YoutubeExplode;
 
 bool isDevelopment = File.Exists(Path.Combine(Environment.CurrentDirectory, "appsettings.Development.json"));
@@ -33,7 +34,9 @@ ServiceProvider serviceProvider = new ServiceCollection()
 
 ChannelDownloaderService channelDownloaderService = serviceProvider.GetRequiredService<ChannelDownloaderService>();
 
-string channelId = "UCGNZ41YzeZuLHcEOGt835gA";
+string channelId = "https://www.youtube.com/@bobito217";
+// string channelId = "UCOuW8i824NprPKrM4Pq4R0w";// боксёр
+
 await channelDownloaderService.DownloadVideosAsync(channelId);
 //await channelDownloaderService.DownloadPlaylists(channelId);
 

@@ -4,9 +4,11 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using YoutubeChannelDownloader.Configurations;
+using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
+using YoutubeExplode.Channels;
 
-namespace YoutubeChannelDownloader;
+namespace YoutubeChannelDownloader.Services;
 
 public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> options, ILogger<ChannelDownloaderService> logger)
 {
@@ -54,13 +56,22 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
         logger.LogDebug("Данные видео успешно обновлены и сохранены в файл: {DataPath}", dataPath);
     }
 
-    public async Task DownloadVideosAsync(string channelId)
+    public async Task DownloadVideosAsync(string channelUrl)
     {
-        string dirPath = Path.Combine(_options.VideoFolderPath, channelId);
+        Channel? channel = await helper.GetChannel(channelUrl);
+
+        if (channel == null)
+        {
+            logger.LogError("Не удалось найти канал по ссылке: {Url}", channelUrl);
+            return;
+        }
+
+        string channelTitle = channel.Title.GetFileName();
+        string dirPath = Path.Combine(_options.VideoFolderPath, channelTitle);
         string dataPath = Path.Combine(dirPath, "data.json");
         string videosPath = Path.Combine(dirPath, "videos");
 
-        logger.LogDebug("Проверка наличия директории для канала: {ChannelId}", channelId);
+        logger.LogDebug("Проверка наличия директории для канала: {Channel}", channelTitle);
 
         if (Directory.Exists(dirPath) == false)
         {
@@ -94,8 +105,8 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
         }
         else
         {
-            logger.LogDebug("Файл data.json не найден. Начинаем загрузку видео для канала: {ChannelId}", channelId);
-            videos = await helper.Download(channelId);
+            logger.LogDebug("Файл data.json не найден. Начинаем загрузку информации о видео для канала: {Channel}", channelTitle);
+            videos = await helper.Download(channel.Id);
             videos.Reverse();
         }
 
