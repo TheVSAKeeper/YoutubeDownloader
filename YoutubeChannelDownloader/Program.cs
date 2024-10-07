@@ -1,33 +1,43 @@
-﻿// See https://aka.ms/new-console-template for more information
-using System.Text.Json;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using YoutubeChannelDownloader;
+using YoutubeChannelDownloader.Configurations;
+using YoutubeChannelDownloader.Services;
+using YoutubeExplode;
 
-Console.WriteLine("Hello, World!");
+bool isDevelopment = File.Exists(Path.Combine(Environment.CurrentDirectory, "appsettings.Development.json"));
 
+IConfigurationRoot configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile($"appsettings{(isDevelopment ? ".Development" : "")}.json", false, true)
+    .Build();
 
-var helper = new Helper();
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console()
+    .CreateLogger();
 
-var basePath = @"E:\bobgroup\projects\youtubeDownloader\downloadChannel";
-var chanelId = "UCGNZ41YzeZuLHcEOGt835gA";
-var dirPath = Path.Combine(basePath, chanelId);
-var dataPath = Path.Combine(dirPath, "data.json");
-if (!Directory.Exists(dirPath))
-{
-    Directory.CreateDirectory(dirPath);
-}
+ServiceProvider serviceProvider = new ServiceCollection()
+    .AddLogging(loggingBuilder => loggingBuilder.AddSerilog(dispose: true))
+    .Configure<DownloadOptions>(configuration.GetSection(nameof(DownloadOptions)))
+    .Configure<FFmpegOptions>(configuration.GetSection(nameof(FFmpegOptions)))
+    .AddSingleton<Helper>()
+    .AddSingleton<YoutubeClient>()
+    .AddSingleton<DownloadService>()
+    .AddSingleton<YoutubeDownloadService>()
+    .AddSingleton<FFmpegConverter>()
+    .AddSingleton<FFmpeg>()
+    .AddSingleton<HttpClient>()
+    .AddSingleton<ChannelDownloaderService>()
+    .BuildServiceProvider();
 
-if (true)
-{
-    var videoData = File.ReadAllText(dataPath);
-    var videos = JsonSerializer.Deserialize<List<VideoInfo>>(videoData);
-    await helper.GetItem(videos.Last(), dirPath);
-}
-else
-{
-    var videos = await helper.Download(chanelId); // я
-    var videoData = JsonSerializer.Serialize(videos);
-    File.WriteAllText(dataPath, videoData);
-}
-//var fullPath = Path.Combine(basePath, fileName + ".mp4");
-// await helper.Download("UCOuW8i824NprPKrM4Pq4R0w"); // боксёр
+ChannelDownloaderService channelDownloaderService = serviceProvider.GetRequiredService<ChannelDownloaderService>();
 
+string channelId = "https://www.youtube.com/@bobito217";
+// string channelId = "UCOuW8i824NprPKrM4Pq4R0w";// боксёр
+
+await channelDownloaderService.DownloadVideosAsync(channelId);
+//await channelDownloaderService.DownloadPlaylists(channelId);
+
+Log.CloseAndFlush();
