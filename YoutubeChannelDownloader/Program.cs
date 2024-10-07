@@ -6,11 +6,10 @@ using YoutubeChannelDownloader.Configurations;
 using YoutubeChannelDownloader.Services;
 using YoutubeExplode;
 
-bool isDevelopment = File.Exists(Path.Combine(Environment.CurrentDirectory, "appsettings.Development.json"));
-
 IConfigurationRoot configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile($"appsettings{(isDevelopment ? ".Development" : "")}.json", false, true)
+    .AddJsonFile($"appsettings.json", false, true)
+    .AddJsonFile($"appsettings.Development.json", false, true)
     .Build();
 
 Log.Logger = new LoggerConfiguration()

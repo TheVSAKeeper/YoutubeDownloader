@@ -401,3 +401,4 @@ FodyWeavers.xsd
 
 # Custom
 YoutubeChannelDownloader/appsettings.Development.json
+/YoutubeDownloader/.config
