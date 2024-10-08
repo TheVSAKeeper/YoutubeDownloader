@@ -7,10 +7,7 @@ using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class DownloadService(
-    ILogger<DownloadService> logger,
-    YoutubeService youtubeService,
-    FFmpegConverter converter)
+public class DownloadService(YoutubeService youtubeService, FFmpegConverter converter, ILogger<DownloadService> logger)
 {
     private readonly List<DownloadItem> _items = [];
 

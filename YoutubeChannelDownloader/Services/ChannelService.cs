@@ -7,21 +7,23 @@ using YoutubeChannelDownloader.Configurations;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode.Channels;
-using YoutubeExplode.Common;
-using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader.Services;
 
 public class ChannelService(YoutubeService youtubeService, Helper helper, IOptions<DownloadOptions> options, ILogger<ChannelService> logger)
 {
+    private readonly DownloadOptions _options = options.Value;
+
     private readonly JsonSerializerOptions _serializerOptions = new()
     {
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    private readonly DownloadOptions _options = options.Value;
-
+    /// <summary>
+    ///     Основной метод для загрузки видео с канала YouTube по его URL.
+    /// </summary>
+    /// <param name="channelUrl">URL канала YouTube.</param>
     public async Task DownloadVideosAsync(string channelUrl)
     {
         Channel? channel = await youtubeService.GetChannel(channelUrl);
@@ -33,89 +35,146 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
         }
 
         string channelTitle = channel.Title.GetFileName();
-        string dirPath = Path.Combine(_options.VideoFolderPath, channelTitle);
-        string dataPath = Path.Combine(dirPath, "data.json");
-        string videosPath = Path.Combine(dirPath, "videos");
+        string channelPath = Path.Combine(_options.VideoFolderPath, channelTitle);
+        string dataPath = Path.Combine(channelPath, "data.json");
+        string videosPath = Path.Combine(channelPath, "videos");
 
-        logger.LogDebug("Проверка наличия директории для канала: {Channel}", channelTitle);
+        EnsureDirectoriesExists(channelPath, videosPath);
 
-        if (Directory.Exists(dirPath) == false)
+        List<VideoInfo>? videos = await LoadVideosData(channel.Id, channelTitle, dataPath);
+
+        if (videos == null)
         {
-            logger.LogDebug("Директория не найдена. Создание директории: {DirPath}", dirPath);
-            Directory.CreateDirectory(dirPath);
+            return;
         }
 
-        helper.RefreshDirectories(videosPath);
-        List<VideoInfo>? videos;
+        await DownloadVideos(videos, dataPath, videosPath);
+    }
 
-        if (File.Exists(dataPath))
+    /// <summary>
+    ///     Проверяет наличие директории для канала и создает её, если необходимо.
+    /// </summary>
+    /// <param name="channelPath">Путь к директории канала.</param>
+    /// <param name="videosPath">Путь к директории для хранения видео.</param>
+    private void EnsureDirectoriesExists(string channelPath, string videosPath)
+    {
+        logger.LogDebug("Проверка наличия директории для канала");
+
+        if (Directory.Exists(channelPath) == false)
         {
-            logger.LogDebug("Чтение данных видео из файла: {DataPath}", dataPath);
-            string videoData = await File.ReadAllTextAsync(dataPath);
-            videos = JsonSerializer.Deserialize<List<VideoInfo>>(videoData);
-
-            if (videos != null && videos.Count != 0)
-            {
-                VideoInfo? last = videos.LastOrDefault();
-
-                if (last != null)
-                {
-                    IAsyncEnumerable<PlaylistVideo> uploads = youtubeService.GetUploadsAsync(channel.Id);
-
-                    List<VideoInfo> newVideos = [];
-
-                    await foreach (PlaylistVideo upload in uploads)
-                    {
-                        if (last.Url == upload.Url)
-                        {
-                            break;
-                        }
-
-                        string fileName = upload.GetFileName();
-
-                        VideoInfo video = new(upload.Title,
-                            fileName,
-                            VideoState.NotDownloaded,
-                            upload.Url,
-                            upload.Thumbnails.TryGetWithHighestResolution()?.Url,
-                            upload.PlaylistId);
-
-                        newVideos.Add(video);
-                        logger.LogInformation("Добавлено новое видео: {Title}", upload.Title);
-                    }
-
-                    newVideos.Reverse();
-                    videos.AddRange(newVideos);
-                }
-
-                ValidateVideoStatuses(videos, videosPath);
-
-                List<VideoInfo> videosToDownload = videos
-                    .Where(info => info.State is VideoState.NotDownloaded or VideoState.Error)
-                    .ToList();
-
-                await DownloadVideos(videosToDownload, videosPath);
-            }
-            else
-            {
-                logger.LogWarning("В файле data.json не найдено видео");
-            }
+            logger.LogDebug("Создание директории: {ChannelPath}", channelPath);
+            Directory.CreateDirectory(channelPath);
         }
-        else
-        {
-            logger.LogDebug("Файл data.json не найден. Начинаем загрузку информации о видео для канала: {Channel}", channelTitle);
-            videos = await helper.Download(channel.Id);
-            videos.Reverse();
-        }
-
-        string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
-        await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
-        logger.LogDebug("Данные видео успешно обновлены и сохранены в файл: {DataPath}", dataPath);
 
         helper.RefreshDirectories(videosPath);
     }
 
-    private async Task DownloadVideos(List<VideoInfo> videos, string videosPath)
+    /// <summary>
+    ///     Получает существующие видео из файла данных или загружает новые данные о видео с канала.
+    /// </summary>
+    /// <param name="channelId">ID канала.</param>
+    /// <param name="channelTitle">Название канала.</param>
+    /// <param name="dataPath">Путь к файлу data.json.</param>
+    /// <returns>Список видео или null, если данные не найдены.</returns>
+    private async Task<List<VideoInfo>?> LoadVideosData(ChannelId channelId, string channelTitle, string dataPath)
+    {
+        if (File.Exists(dataPath))
+        {
+            logger.LogDebug("Чтение данных видео из файла: {DataPath}", dataPath);
+            string videoData = await File.ReadAllTextAsync(dataPath);
+            List<VideoInfo>? savedVideos = JsonSerializer.Deserialize<List<VideoInfo>>(videoData);
+
+            if (savedVideos is { Count: > 0 })
+            {
+                await UpdateVideosData(savedVideos, channelId);
+                return savedVideos;
+            }
+
+            logger.LogWarning("Файл data.json не содержит информации о видео");
+        }
+        else
+        {
+            logger.LogDebug("Файл data.json не найден");
+        }
+
+        logger.LogDebug("Загрузка информации о загрузках на канале: {Channel}", channelTitle);
+        List<VideoInfo> newVideos = await helper.Download(channelId);
+        newVideos.Reverse();
+
+        return newVideos;
+    }
+
+    /// <summary>
+    ///     Обновляет список видео, добавляя новые загрузки, если они есть.
+    /// </summary>
+    /// <param name="videos">Список видео для обновления.</param>
+    /// <param name="channelId">ID канала.</param>
+    private async Task UpdateVideosData(List<VideoInfo> videos, ChannelId channelId)
+    {
+        VideoInfo? lastVideo = videos.LastOrDefault();
+
+        if (lastVideo != null)
+        {
+            List<VideoInfo> newVideos = await FetchNewVideoUploads(channelId, lastVideo.Url);
+
+            if (newVideos.Count > 0)
+            {
+                videos.AddRange(newVideos);
+                logger.LogInformation("Найдено {Count} новых видео", newVideos.Count);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Обрабатывает и загружает новые видео, обновляет файл данных с информацией о видео.
+    /// </summary>
+    /// <param name="videos">Список видео.</param>
+    /// <param name="dataPath">Путь к файлу данных.</param>
+    /// <param name="videosPath">Путь к директории с видеофайлами.</param>
+    private async Task DownloadVideos(List<VideoInfo> videos, string dataPath, string videosPath)
+    {
+        ValidateVideoState(videos, videosPath);
+
+        List<VideoInfo> videosToDownload = videos.Where(info => info.State is VideoState.NotDownloaded or VideoState.Error).ToList();
+        await DownloadPendingVideos(videosToDownload, videosPath);
+
+        string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
+        await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
+        logger.LogDebug("Данные видео обновлены и сохранены в файл: {DataPath}", dataPath);
+    }
+
+    /// <summary>
+    ///     Получает новые загруженные видео с канала, которые не были скачаны.
+    /// </summary>
+    /// <param name="channelId">ID канала.</param>
+    /// <param name="lastVideoUrl">URL последнего загруженного видео.</param>
+    /// <returns>Список новых видео.</returns>
+    private async Task<List<VideoInfo>> FetchNewVideoUploads(ChannelId channelId, string lastVideoUrl)
+    {
+        List<VideoInfo> newVideos = [];
+        IAsyncEnumerable<VideoInfo> uploads = helper.GetUploadsInfoAsync(channelId);
+
+        await foreach (VideoInfo upload in uploads)
+        {
+            if (lastVideoUrl == upload.Url)
+            {
+                break;
+            }
+
+            newVideos.Add(upload);
+            logger.LogDebug("Добавлено новое видео: {Title}", upload.Title);
+        }
+
+        newVideos.Reverse();
+        return newVideos;
+    }
+
+    /// <summary>
+    ///     Загружает видео, которые ещё не были скачаны.
+    /// </summary>
+    /// <param name="videos">Список видео для загрузки.</param>
+    /// <param name="videosPath">Путь к директории для хранения видео.</param>
+    private async Task DownloadPendingVideos(List<VideoInfo> videos, string videosPath)
     {
         logger.LogInformation("Найдено {DownloadableVideoCount} видео для загрузки", videos.Count);
 
@@ -132,14 +191,19 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "упс: {Message}", ex.Message);
+                logger.LogError(ex, "Ошибка: {Message}", ex.Message);
                 Thread.Sleep(5000 * errorCount);
                 errorCount++;
             }
         }
     }
 
-    private void ValidateVideoStatuses(List<VideoInfo> videos, string videosPath)
+    /// <summary>
+    ///     Проверяет, все ли файлы загруженных видео присутствуют в директории, и обновляет статус видео.
+    /// </summary>
+    /// <param name="videos">Список видео.</param>
+    /// <param name="videosPath">Путь к директории с видео.</param>
+    private void ValidateVideoState(List<VideoInfo> videos, string videosPath)
     {
         foreach (VideoInfo video in videos)
         {
@@ -149,19 +213,24 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
             }
 
             string videoFilePath = Path.Combine(videosPath, video.FileName);
+            string[] allFiles = Directory.GetFiles(videosPath);
 
-            int count1 = Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName + ".", StringComparison.InvariantCultureIgnoreCase));
-            int count2 = Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName + "_", StringComparison.InvariantCultureIgnoreCase));
+            int mainFileCount = allFiles.Count(x => x.Contains($"{video.FileName}.", StringComparison.InvariantCultureIgnoreCase));
+            int infoFileCount = allFiles.Count(x => x.Contains($"{video.FileName}_", StringComparison.InvariantCultureIgnoreCase));
 
-            if (count1 != 1 && count2 != 4)
+            int neededMainCount = 1;
+            int neededInfoCount = 4;
+
+            if (mainFileCount != neededMainCount || infoFileCount != neededInfoCount)
             {
-                logger.LogDebug("main count expected 1: {Count1}, secondary count expected 4: {Count2}", count1, count2);
-                logger.LogError("Видео {Title} имеет статус 'Загружено', но часть файлов не найдена: {FilePath}", video.Title, videoFilePath);
+                logger.LogDebug("Ожидаемое количество основных файлов: {NeededMainCount}, Найдено: {FoundMainCount}", neededMainCount, mainFileCount);
+                logger.LogDebug("Ожидаемое количество информационных файлов: {NeededInfoCount}, Найдено: {FoundInfoCount}", neededInfoCount, infoFileCount);
+                logger.LogError("Видео '{Title}' имеет статус 'Загружено', но не найдены необходимые файлы: {FilePath}", video.Title, videoFilePath);
                 video.State = VideoState.Error;
             }
             else
             {
-                logger.LogTrace("Видео {Title} имеет статус 'Загружено' и файлы найдены: {FilePath}", video.Title, videoFilePath);
+                logger.LogTrace("Видео '{Title}' имеет статус 'Загружено' и все файлы найдены: {FilePath}", video.Title, videoFilePath);
             }
         }
     }
