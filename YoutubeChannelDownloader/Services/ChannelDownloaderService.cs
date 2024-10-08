@@ -92,7 +92,7 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
             {
                 ValidateVideoStatuses(videos, videosPath);
 
-                List<VideoInfo> videosToDownload = videos.Take(3)
+                List<VideoInfo> videosToDownload = videos
                     .Where(info => info.Status is VideoStatus.NotDownloaded or VideoStatus.Error)
                     .ToList();
 
@@ -110,7 +110,7 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
             videos.Reverse();
         }
 
-        _videos = [..videos!];
+        _videos = [.. videos!];
 
         string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
         await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
@@ -123,10 +123,22 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
     {
         logger.LogInformation("Найдено {DownloadableVideoCount} видео для загрузки", videos.Count);
 
+        var errorCount = 0;
         foreach (VideoInfo video in videos)
         {
             logger.LogDebug("Загрузка видео: {VideoTitle}", video.Title);
-            video.Status = await helper.GetItem(video, videosPath);
+
+            try
+            {
+                video.Status = await helper.GetItem(video, videosPath);
+                errorCount = 0;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "упс: " + ex.Message);
+                Thread.Sleep(5000 * errorCount);
+                errorCount++;
+            }
         }
     }
 
@@ -144,6 +156,7 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
             if (Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName, StringComparison.InvariantCultureIgnoreCase)) != 5)
             {
                 logger.LogError("Видео {Title} имеет статус 'Загружено', но часть файлов не найдена: {FilePath}", video.Title, videoFilePath);
+                video.Status = VideoStatus.NotDownloaded;
             }
             else
             {
