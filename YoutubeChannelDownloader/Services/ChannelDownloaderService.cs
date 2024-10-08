@@ -153,8 +153,11 @@ public class ChannelDownloaderService(Helper helper, IOptions<DownloadOptions> o
 
             string videoFilePath = Path.Combine(videosPath, video.FileName);
 
-            if (Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName, StringComparison.InvariantCultureIgnoreCase)) != 5)
+            var count1 = Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName + ".", StringComparison.InvariantCultureIgnoreCase));
+            var count2 = Directory.GetFiles(videosPath).Count(x => x.Contains(video.FileName + "_", StringComparison.InvariantCultureIgnoreCase));
+            if (count1 != 1 && count2 != 4)
             {
+                logger.LogDebug("main count expected 1: {count1}, secondary count expected 4: {count2}", count1, count2);
                 logger.LogError("Видео {Title} имеет статус 'Загружено', но часть файлов не найдена: {FilePath}", video.Title, videoFilePath);
                 video.Status = VideoStatus.NotDownloaded;
             }
