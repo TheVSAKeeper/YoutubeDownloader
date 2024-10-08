@@ -7,30 +7,38 @@ using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class Helper(DownloadService downloadService, YoutubeService youtubeClient, HttpClient httpClient, ILogger<Helper> logger)
+public class Helper(DownloadService downloadService, YoutubeService youtubeService, HttpClient httpClient, ILogger<Helper> logger)
 {
     public async Task<List<VideoInfo>> Download(string channelUrl)
     {
-        IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.GetUploadsAsync(channelUrl);
+        IAsyncEnumerable<VideoInfo> yVideos = GetUploadsInfoAsync(channelUrl);
         List<VideoInfo> videos = [];
 
-        await foreach (PlaylistVideo item in yVideos)
+        await foreach (VideoInfo? video in yVideos)
         {
-            string fileName = item.GetFileName();
-
-            VideoInfo video = new(item.Title,
-                fileName,
-                VideoState.NotDownloaded,
-                item.Url,
-                item.Thumbnails.TryGetWithHighestResolution()?.Url,
-                item.PlaylistId);
-
             videos.Add(video);
-            logger.LogDebug("Добавлено видео: {Title}", item.Title);
+            logger.LogDebug("Добавлено видео: {Title}", video.Title);
         }
 
         logger.LogInformation("Загружено {Count} видео из канала: {ChannelUrl}", videos.Count, channelUrl);
         return videos;
+    }
+
+    public async IAsyncEnumerable<VideoInfo> GetUploadsInfoAsync(string channelUrl)
+    {
+        IAsyncEnumerable<PlaylistVideo> videos = youtubeService.GetUploadsAsync(channelUrl);
+
+        await foreach (PlaylistVideo video in videos)
+        {
+            string fileName = video.GetFileName();
+
+            yield return new VideoInfo(video.Title,
+                fileName,
+                VideoState.NotDownloaded,
+                video.Url,
+                video.Thumbnails.TryGetWithHighestResolution()?.Url,
+                video.PlaylistId);
+        }
     }
 
     public async Task<VideoState> GetItem(VideoInfo videoInfo, string path)
