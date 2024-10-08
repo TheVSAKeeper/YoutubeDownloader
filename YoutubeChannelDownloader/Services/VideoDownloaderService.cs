@@ -10,6 +10,7 @@ namespace YoutubeChannelDownloader.Services;
 public class VideoDownloaderService(
     DownloadService downloadService,
     YoutubeService youtubeService,
+    DirectoryService directoryService,
     HttpClient httpClient,
     ILogger<VideoDownloaderService> logger)
 {
@@ -83,6 +84,7 @@ public class VideoDownloaderService(
         await SaveVideoMetadataAsync(videoInfo, item, path);
 
         logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
+        directoryService.CleanUpTempFiles(item, stream);
         return VideoState.Downloaded;
     }
 

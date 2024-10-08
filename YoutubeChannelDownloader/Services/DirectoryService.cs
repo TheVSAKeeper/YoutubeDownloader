@@ -35,6 +35,39 @@ public class DirectoryService(ILogger<DirectoryService> logger)
     }
 
     /// <summary>
+    ///     Очищает временные файлы, связанные с указанным элементом загрузки.
+    /// </summary>
+    /// <param name="item">Элемент загрузки, для которого нужно очистить временные файлы.</param>
+    /// <param name="stream">Поток загрузки, содержащий путь к временным файлам.</param>
+    public void CleanUpTempFiles(DownloadItem item, DownloadItemStream stream)
+    {
+        logger.LogInformation("Начало очистки временных файлов для элемента: {VideoTitle}, временный путь: {TempPath}", item.Video.Title, stream.TempPath);
+
+        string? directoryName = Path.GetDirectoryName(stream.TempPath);
+
+        if (string.IsNullOrWhiteSpace(directoryName))
+        {
+            logger.LogWarning("Не удалось получить имя директории из временного пути: {TempPath}", stream.TempPath);
+            return;
+        }
+
+        DirectoryInfo directoryInfo = new(directoryName);
+        FileInfo[] filesToDelete = directoryInfo.GetFiles().Where(file => file.Name.StartsWith(item.Id)).ToArray();
+
+        if (filesToDelete.Length == 0)
+        {
+            logger.LogInformation("Не найдено временных файлов для удаления, соответствующих элементу: {ItemId}", item.Id);
+            return;
+        }
+
+        foreach (FileInfo file in filesToDelete)
+        {
+            File.Delete(file.FullName);
+            logger.LogDebug("Удалён временный файл: {File}", file.FullName);
+        }
+    }
+
+    /// <summary>
     ///     Создает директорию, если она не существует.
     /// </summary>
     /// <param name="path">Путь к директории.</param>

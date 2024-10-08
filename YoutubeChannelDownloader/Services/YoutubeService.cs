@@ -62,7 +62,7 @@ public class YoutubeService(YoutubeClient youtubeClient, ILogger<YoutubeService>
                 return;
             }
 
-            logger.LogDebug("{StreamType}: {Percent:P2}\t{StreamTitle}\t{VideoTitle}", streamType, percent, streamTitle, videoTitle);
+            logger.LogDebug("{StreamType}: {Percent:P2} {VideoTitle} {StreamTitle}", streamType, percent, videoTitle, streamTitle);
             oldPercent = percent;
         });
 
