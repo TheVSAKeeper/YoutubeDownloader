@@ -7,6 +7,8 @@ using YoutubeChannelDownloader.Configurations;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode.Channels;
+using YoutubeExplode.Common;
+using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader.Services;
 
@@ -54,6 +56,38 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
 
             if (videos != null && videos.Count != 0)
             {
+                VideoInfo? last = videos.LastOrDefault();
+
+                if (last != null)
+                {
+                    IAsyncEnumerable<PlaylistVideo> uploads = youtubeService.GetUploadsAsync(channel.Id);
+
+                    List<VideoInfo> newVideos = [];
+
+                    await foreach (PlaylistVideo upload in uploads)
+                    {
+                        if (last.Url == upload.Url)
+                        {
+                            break;
+                        }
+
+                        string fileName = upload.GetFileName();
+
+                        VideoInfo video = new(upload.Title,
+                            fileName,
+                            VideoState.NotDownloaded,
+                            upload.Url,
+                            upload.Thumbnails.TryGetWithHighestResolution()?.Url,
+                            upload.PlaylistId);
+
+                        newVideos.Add(video);
+                        logger.LogInformation("Добавлено новое видео: {Title}", upload.Title);
+                    }
+
+                    newVideos.Reverse();
+                    videos.AddRange(newVideos);
+                }
+
                 ValidateVideoStatuses(videos, videosPath);
 
                 List<VideoInfo> videosToDownload = videos
