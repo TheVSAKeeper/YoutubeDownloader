@@ -10,7 +10,12 @@ using YoutubeExplode.Channels;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class ChannelService(YoutubeService youtubeService, Helper helper, IOptions<DownloadOptions> options, ILogger<ChannelService> logger)
+public class ChannelService(
+    YoutubeService youtubeService,
+    VideoDownloaderService helper,
+    DirectoryService directoryService,
+    IOptions<DownloadOptions> options,
+    ILogger<ChannelService> logger)
 {
     private readonly DownloadOptions _options = options.Value;
 
@@ -24,7 +29,8 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     ///     Основной метод для загрузки видео с канала YouTube по его URL.
     /// </summary>
     /// <param name="channelUrl">URL канала YouTube.</param>
-    public async Task DownloadVideosAsync(string channelUrl)
+    /// <param name="isDownload">Необходимо ли загружать обнаруженные видео.</param>
+    public async Task DownloadVideosAsync(string channelUrl, bool isDownload = true)
     {
         Channel? channel = await youtubeService.GetChannel(channelUrl);
 
@@ -41,14 +47,34 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
 
         EnsureDirectoriesExists(channelPath, videosPath);
 
-        List<VideoInfo>? videos = await LoadVideosData(channel.Id, channelTitle, dataPath);
+        List<VideoInfo>? videos = await LoadVideosDataAsync(channel.Id, channelTitle, dataPath);
 
         if (videos == null)
         {
             return;
         }
 
-        await DownloadVideos(videos, dataPath, videosPath);
+        ValidateVideoState(videos, videosPath);
+        await SaveVideoData(videos, dataPath);
+
+        if (isDownload)
+        {
+            await DownloadVideosAsync(videos, videosPath);
+        }
+
+        await SaveVideoData(videos, dataPath);
+    }
+
+    /// <summary>
+    ///     Сохраняет данные о видео.
+    /// </summary>
+    /// <param name="videos">Список видео.</param>
+    /// <param name="dataPath">Путь к файлу data.json.</param>
+    private async Task SaveVideoData(List<VideoInfo> videos, string dataPath)
+    {
+        string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
+        await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
+        logger.LogDebug("Данные видео обновлены и сохранены в файл: {DataPath}", dataPath);
     }
 
     /// <summary>
@@ -66,7 +92,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
             Directory.CreateDirectory(channelPath);
         }
 
-        helper.RefreshDirectories(videosPath);
+        directoryService.CleanUpDirectories(videosPath);
     }
 
     /// <summary>
@@ -76,7 +102,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     /// <param name="channelTitle">Название канала.</param>
     /// <param name="dataPath">Путь к файлу data.json.</param>
     /// <returns>Список видео или null, если данные не найдены.</returns>
-    private async Task<List<VideoInfo>?> LoadVideosData(ChannelId channelId, string channelTitle, string dataPath)
+    private async Task<List<VideoInfo>?> LoadVideosDataAsync(ChannelId channelId, string channelTitle, string dataPath)
     {
         if (File.Exists(dataPath))
         {
@@ -86,7 +112,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
 
             if (savedVideos is { Count: > 0 })
             {
-                await UpdateVideosData(savedVideos, channelId);
+                await UpdateVideosAsync(savedVideos, channelId);
                 return savedVideos;
             }
 
@@ -98,7 +124,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
         }
 
         logger.LogDebug("Загрузка информации о загрузках на канале: {Channel}", channelTitle);
-        List<VideoInfo> newVideos = await helper.Download(channelId);
+        List<VideoInfo> newVideos = await helper.DownloadVideosFromChannelAsync(channelId);
         newVideos.Reverse();
 
         return newVideos;
@@ -109,13 +135,13 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     /// </summary>
     /// <param name="videos">Список видео для обновления.</param>
     /// <param name="channelId">ID канала.</param>
-    private async Task UpdateVideosData(List<VideoInfo> videos, ChannelId channelId)
+    private async Task UpdateVideosAsync(List<VideoInfo> videos, ChannelId channelId)
     {
         VideoInfo? lastVideo = videos.LastOrDefault();
 
         if (lastVideo != null)
         {
-            List<VideoInfo> newVideos = await FetchNewVideoUploads(channelId, lastVideo.Url);
+            List<VideoInfo> newVideos = await FetchNewVideoUploadsAsync(channelId, lastVideo.Url);
 
             if (newVideos.Count > 0)
             {
@@ -126,21 +152,14 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     }
 
     /// <summary>
-    ///     Обрабатывает и загружает новые видео, обновляет файл данных с информацией о видео.
+    ///     Обрабатывает и загружает новые видео.
     /// </summary>
     /// <param name="videos">Список видео.</param>
-    /// <param name="dataPath">Путь к файлу данных.</param>
     /// <param name="videosPath">Путь к директории с видеофайлами.</param>
-    private async Task DownloadVideos(List<VideoInfo> videos, string dataPath, string videosPath)
+    private async Task DownloadVideosAsync(List<VideoInfo> videos, string videosPath)
     {
-        ValidateVideoState(videos, videosPath);
-
         List<VideoInfo> videosToDownload = videos.Where(info => info.State is VideoState.NotDownloaded or VideoState.Error).ToList();
-        await DownloadPendingVideos(videosToDownload, videosPath);
-
-        string updatedVideoData = JsonSerializer.Serialize(videos, _serializerOptions);
-        await File.WriteAllTextAsync(dataPath, updatedVideoData, Encoding.UTF8);
-        logger.LogDebug("Данные видео обновлены и сохранены в файл: {DataPath}", dataPath);
+        await DownloadPendingVideosAsync(videosToDownload, videosPath);
     }
 
     /// <summary>
@@ -149,10 +168,10 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     /// <param name="channelId">ID канала.</param>
     /// <param name="lastVideoUrl">URL последнего загруженного видео.</param>
     /// <returns>Список новых видео.</returns>
-    private async Task<List<VideoInfo>> FetchNewVideoUploads(ChannelId channelId, string lastVideoUrl)
+    private async Task<List<VideoInfo>> FetchNewVideoUploadsAsync(ChannelId channelId, string lastVideoUrl)
     {
         List<VideoInfo> newVideos = [];
-        IAsyncEnumerable<VideoInfo> uploads = helper.GetUploadsInfoAsync(channelId);
+        IAsyncEnumerable<VideoInfo> uploads = helper.FetchUploadVideosAsync(channelId);
 
         await foreach (VideoInfo upload in uploads)
         {
@@ -174,7 +193,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     /// </summary>
     /// <param name="videos">Список видео для загрузки.</param>
     /// <param name="videosPath">Путь к директории для хранения видео.</param>
-    private async Task DownloadPendingVideos(List<VideoInfo> videos, string videosPath)
+    private async Task DownloadPendingVideosAsync(List<VideoInfo> videos, string videosPath)
     {
         logger.LogInformation("Найдено {DownloadableVideoCount} видео для загрузки", videos.Count);
 
@@ -186,7 +205,7 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
 
             try
             {
-                video.State = await helper.GetItem(video, videosPath);
+                video.State = await helper.DownloadVideoAsync(video, videosPath);
                 errorCount = 0;
             }
             catch (Exception ex)
@@ -207,11 +226,6 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
     {
         foreach (VideoInfo video in videos)
         {
-            if (video.State != VideoState.Downloaded)
-            {
-                continue;
-            }
-
             string videoFilePath = Path.Combine(videosPath, video.FileName);
             string[] allFiles = Directory.GetFiles(videosPath);
 
@@ -221,16 +235,20 @@ public class ChannelService(YoutubeService youtubeService, Helper helper, IOptio
             int neededMainCount = 1;
             int neededInfoCount = 4;
 
-            if (mainFileCount != neededMainCount || infoFileCount != neededInfoCount)
+            if (mainFileCount == neededMainCount && infoFileCount == neededInfoCount)
             {
+                if (video.State != VideoState.Downloaded)
+                {
+                    logger.LogDebug("Видео '{Title}' имеет статус 'Не загружено', но все файлы найдены: {FilePath}", video.Title, videoFilePath);
+                    video.State = VideoState.Downloaded;
+                }
+            }
+            else if (video.State == VideoState.Downloaded)
+            {
+                logger.LogError("Видео '{Title}' имеет статус 'Загружено', но не найдены необходимые файлы: {FilePath}", video.Title, videoFilePath);
                 logger.LogDebug("Ожидаемое количество основных файлов: {NeededMainCount}, Найдено: {FoundMainCount}", neededMainCount, mainFileCount);
                 logger.LogDebug("Ожидаемое количество информационных файлов: {NeededInfoCount}, Найдено: {FoundInfoCount}", neededInfoCount, infoFileCount);
-                logger.LogError("Видео '{Title}' имеет статус 'Загружено', но не найдены необходимые файлы: {FilePath}", video.Title, videoFilePath);
                 video.State = VideoState.Error;
-            }
-            else
-            {
-                logger.LogTrace("Видео '{Title}' имеет статус 'Загружено' и все файлы найдены: {FilePath}", video.Title, videoFilePath);
             }
         }
     }
