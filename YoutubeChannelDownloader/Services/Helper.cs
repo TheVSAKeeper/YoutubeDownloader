@@ -2,26 +2,16 @@
 using System.Globalization;
 using YoutubeChannelDownloader.Extensions;
 using YoutubeChannelDownloader.Models;
-using YoutubeExplode;
-using YoutubeExplode.Channels;
 using YoutubeExplode.Common;
 using YoutubeExplode.Playlists;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class Helper(DownloadService downloadService, HttpClient httpClient, YoutubeClient youtubeClient, ILogger<Helper> logger)
+public class Helper(DownloadService downloadService, YoutubeService youtubeClient, HttpClient httpClient, ILogger<Helper> logger)
 {
-    private readonly Func<string, Task<Channel?>>[] _parsers =
-    [
-        async url => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
-        async url => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
-        async url => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
-        async url => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
-    ];
-
     public async Task<List<VideoInfo>> Download(string channelUrl)
     {
-        IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.Channels.GetUploadsAsync(channelUrl);
+        IAsyncEnumerable<PlaylistVideo> yVideos = youtubeClient.GetUploadsAsync(channelUrl);
         List<VideoInfo> videos = [];
 
         await foreach (PlaylistVideo item in yVideos)
@@ -30,7 +20,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
 
             VideoInfo video = new(item.Title,
                 fileName,
-                VideoStatus.NotDownloaded,
+                VideoState.NotDownloaded,
                 item.Url,
                 item.Thumbnails.TryGetWithHighestResolution()?.Url,
                 item.PlaylistId);
@@ -43,27 +33,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
         return videos;
     }
 
-    public async Task<List<PlaylistInfo>> DownloadPlaylist(List<VideoInfo> videos)
-    {
-        IEnumerable<string> playlistIds = videos.Select(x => x.PlaylistId).Distinct();
-        List<PlaylistInfo> playlists = [];
-
-        foreach (string id in playlistIds)
-        {
-            Playlist playlist = await youtubeClient.Playlists.GetAsync(id);
-
-            PlaylistInfo info = new(playlist.Id,
-                playlist.Title,
-                playlist.Description,
-                playlist.Thumbnails.TryGetWithHighestResolution()?.Url);
-
-            playlists.Add(info);
-        }
-
-        return playlists;
-    }
-
-    public async Task<VideoStatus> GetItem(VideoInfo videoInfo, string path)
+    public async Task<VideoState> GetItem(VideoInfo videoInfo, string path)
     {
         string url = videoInfo.Url;
 
@@ -73,7 +43,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
         if (item == null)
         {
             logger.LogError("Ошибка при загрузке видео: {VideoTitle}", videoInfo.Title);
-            return VideoStatus.Error;
+            return VideoState.Error;
         }
 
         await File.WriteAllTextAsync(Path.Combine(path, $"{videoInfo.FileName}_title.txt"), videoInfo.Title);
@@ -83,17 +53,7 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
 
         logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
 
-        return VideoStatus.Downloaded;
-    }
-
-    public async Task GetPlaylist(PlaylistInfo videoInfo, string path)
-    {
-        string filename = videoInfo.Title.GetFileName();
-        await File.WriteAllTextAsync(Path.Combine(path, $"{filename}_title.txt"), videoInfo.Title);
-        await File.WriteAllTextAsync(Path.Combine(path, $"{filename}_description.txt"), videoInfo.Description);
-        await DownloadThumbnail(videoInfo.ThumbnailUrl, Path.Combine(path, $"{filename}_thumbnail.jpg"));
-
-        logger.LogInformation("Загрузка видео завершена: {VideoTitle}", videoInfo.Title);
+        return VideoState.Downloaded;
     }
 
     public void RefreshDirectories(string path)
@@ -140,21 +100,6 @@ public class Helper(DownloadService downloadService, HttpClient httpClient, Yout
         {
             logger.LogError(exception, "Ошибка при обновлении директорий: {Path}", path);
         }
-    }
-
-    public async Task<Channel?> GetChannel(string channelUrl)
-    {
-        foreach (Func<string, Task<Channel?>> parser in _parsers)
-        {
-            Channel? channel = await parser(channelUrl);
-
-            if (channel != null)
-            {
-                return channel;
-            }
-        }
-
-        return null;
     }
 
     private async Task DownloadThumbnail(string? thumbnailUrl, string savePath)

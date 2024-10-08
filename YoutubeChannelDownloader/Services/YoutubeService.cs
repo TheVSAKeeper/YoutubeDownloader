@@ -2,13 +2,43 @@
 using System.Diagnostics;
 using YoutubeChannelDownloader.Models;
 using YoutubeExplode;
+using YoutubeExplode.Channels;
+using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class YoutubeDownloadService(YoutubeClient youtubeClient, ILogger<YoutubeDownloadService> logger)
+public class YoutubeService(YoutubeClient youtubeClient, ILogger<YoutubeService> logger)
 {
+    private readonly Func<string, Task<Channel?>>[] _parsers =
+    [
+        async url => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
+        async url => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
+        async url => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
+        async url => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
+    ];
+
+    public async Task<Channel?> GetChannel(string channelUrl)
+    {
+        foreach (Func<string, Task<Channel?>> parser in _parsers)
+        {
+            Channel? channel = await parser(channelUrl);
+
+            if (channel != null)
+            {
+                return channel;
+            }
+        }
+
+        return null;
+    }
+
+    public IAsyncEnumerable<PlaylistVideo> GetUploadsAsync(string channelUrl)
+    {
+        return youtubeClient.Channels.GetUploadsAsync(channelUrl);
+    }
+
     public ValueTask DownloadAsync(IStreamInfo stream, string path, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         return youtubeClient.Videos.Streams.DownloadAsync(stream, path, progress, cancellationToken);
