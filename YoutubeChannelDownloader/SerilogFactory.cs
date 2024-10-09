@@ -18,8 +18,8 @@ public static class SerilogFactory
             .MinimumLevel.Debug()
             .WriteTo.Console()
             .WriteTo.File(logPath,
-                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss. fff zzz} {Level:u3}]({SourceContext}) {Message:lj}{NewLine}{Exception}",
-                rollingInterval: RollingInterval.Hour)
+                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}]({SourceContext}) {Message:lj}{NewLine}{Exception}",
+                rollingInterval: RollingInterval.Day)
             .CreateLogger();
 
         Log.Logger = logger;

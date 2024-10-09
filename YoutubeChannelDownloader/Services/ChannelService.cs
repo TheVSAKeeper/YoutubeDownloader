@@ -208,9 +208,9 @@ public class ChannelService(
                 video.State = await helper.DownloadVideoAsync(video, videosPath);
                 errorCount = 0;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                logger.LogError(ex, "Ошибка: {Message}", ex.Message);
+                logger.LogError(exception, "Ошибка: {Message}", exception.Message);
                 Thread.Sleep(5000 * errorCount);
                 errorCount++;
             }
@@ -242,13 +242,24 @@ public class ChannelService(
                     logger.LogDebug("Видео '{Title}' имеет статус 'Не загружено', но все файлы найдены: {FilePath}", video.Title, videoFilePath);
                     video.State = VideoState.Downloaded;
                 }
+                else
+                {
+                    logger.LogTrace("Видео '{Title}' имеет валидный статус", video.Title);
+                }
             }
-            else if (video.State == VideoState.Downloaded)
+            else
             {
-                logger.LogError("Видео '{Title}' имеет статус 'Загружено', но не найдены необходимые файлы: {FilePath}", video.Title, videoFilePath);
-                logger.LogDebug("Ожидаемое количество основных файлов: {NeededMainCount}, Найдено: {FoundMainCount}", neededMainCount, mainFileCount);
-                logger.LogDebug("Ожидаемое количество информационных файлов: {NeededInfoCount}, Найдено: {FoundInfoCount}", neededInfoCount, infoFileCount);
-                video.State = VideoState.Error;
+                if (video.State == VideoState.Downloaded)
+                {
+                    logger.LogError("Видео '{Title}' имеет статус 'Загружено', но не найдены необходимые файлы: {FilePath}", video.Title, videoFilePath);
+                    logger.LogDebug("Ожидаемое количество основных файлов: {NeededMainCount}, Найдено: {FoundMainCount}", neededMainCount, mainFileCount);
+                    logger.LogDebug("Ожидаемое количество информационных файлов: {NeededInfoCount}, Найдено: {FoundInfoCount}", neededInfoCount, infoFileCount);
+                    video.State = VideoState.Error;
+                }
+                else
+                {
+                    logger.LogTrace("Видео '{Title}' имеет валидный статус", video.Title);
+                }
             }
         }
     }

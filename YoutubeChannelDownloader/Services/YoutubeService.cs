@@ -8,7 +8,9 @@ using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class YoutubeService(YoutubeClient youtubeClient, ILogger<YoutubeService> logger)
+public class YoutubeService(
+    YoutubeClient youtubeClient,
+    ILogger<YoutubeService> logger)
 {
     private readonly Func<string, Task<Channel?>>[] _parsers =
     [

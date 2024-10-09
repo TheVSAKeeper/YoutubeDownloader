@@ -4,7 +4,8 @@ using YoutubeChannelDownloader.Models;
 
 namespace YoutubeChannelDownloader.Services;
 
-public class DirectoryService(ILogger<DirectoryService> logger)
+public class DirectoryService(
+    ILogger<DirectoryService> logger)
 {
     /// <summary>
     ///     Очищает временные директории и создает необходимые папки.

@@ -55,8 +55,7 @@ public class VideoDownloaderService(
                 fileName,
                 VideoState.NotDownloaded,
                 video.Url,
-                video.Thumbnails.TryGetWithHighestResolution()?.Url,
-                video.PlaylistId);
+                video.Thumbnails.TryGetWithHighestResolution()?.Url);
 
             logger.LogTrace("Найдено видео: {Title}", video.Title);
         }
